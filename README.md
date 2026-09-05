@@ -57,14 +57,15 @@ git push -u origin main
 ### Step 3: Download Your APK from GitHub Actions
 1. Open your repository on GitHub in your browser.
 2. Click on the **Actions** tab at the top.
-3. You will see a running workflow named **"Build Android APK"**.
-4. Click on the workflow run. Once it finishes (typically takes 2–3 minutes):
-   - Scroll down to the **Artifacts** section at the bottom of the page.
-   - Click on **`MediaDownloader-APK`** to download the zip file.
-5. Extract the zip file to get `MediaDownloader-v1.0.0.apk` and transfer it to your phone (or download it directly from your phone's browser!).
+3. You will see the workflow run named **"Build Android APK"**.
+4. Click on the workflow run. Once it finishes (~2–3 minutes):
+   - Scroll down to the **Artifacts** section at the bottom.
+   - Click on **`MediaDownloader-Lite-arm64-v8a`** to download the **~40 MB lightweight APK** (Recommended! Works on 99% of modern Android phones like Samsung, Xiaomi, Pixel, Oppo, OnePlus).
+   - If you have an older 32-bit Android phone, download **`MediaDownloader-All-Variants`** which includes `armeabi-v7a` (~35 MB) as well.
+5. Extract the zip file, transfer the `.apk` to your phone, and install it!
 
 > [!TIP]
-> You can also trigger a new build anytime directly from GitHub by going to **Actions** ➔ **Build Android APK** ➔ **Run workflow**.
+> Why was the original APK 195 MB? The universal APK bundles 4 different device architectures (Python + FFmpeg for ARM64, ARMv7, x86, and x86_64). By downloading the `arm64-v8a` APK, you only download what your phone needs, cutting download size by **~75% to 80%**!
 
 ---
 

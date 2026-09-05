@@ -17,7 +17,16 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
         }
     }
 
@@ -49,6 +58,9 @@ android {
     }
 
     packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
         resources {
             excludes += listOf(
                 "META-INF/DEPENDENCIES",
