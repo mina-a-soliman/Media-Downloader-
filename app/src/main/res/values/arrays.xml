@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="video_qualities_array">
+        <item>@string/quality_best</item>
+        <item>@string/quality_1080p</item>
+        <item>@string/quality_720p</item>
+        <item>@string/quality_480p</item>
+        <item>@string/quality_360p</item>
+    </string-array>
+
+    <string-array name="subtitles_array">
+        <item>@string/sub_all</item>
+        <item>@string/sub_en</item>
+        <item>@string/sub_ar</item>
+        <item>@string/sub_es</item>
+        <item>@string/sub_fr</item>
+    </string-array>
+</resources>

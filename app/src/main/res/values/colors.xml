@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#6200EE</color>
+    <color name="primary_variant">#3700B3</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="secondary">#03DAC6</color>
+    <color name="secondary_variant">#018786</color>
+    <color name="on_secondary">#000000</color>
+
+    <!-- Platform specific accent colors -->
+    <color name="color_youtube">#FF0000</color>
+    <color name="color_facebook">#1877F2</color>
+    <color name="color_instagram">#E1306C</color>
+    <color name="color_generic">#4CAF50</color>
+
+    <!-- Status colors -->
+    <color name="status_success">#2E7D32</color>
+    <color name="status_error">#C62828</color>
+    <color name="status_info">#1565C0</color>
+
+    <!-- Neutral & Surfaces -->
+    <color name="background_light">#F5F7FB</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="text_primary">#1C1B1F</color>
+    <color name="text_secondary">#757575</color>
+    <color name="divider">#E0E0E0</color>
+</resources>
