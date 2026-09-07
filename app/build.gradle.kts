@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "com.media.downloader"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.media.downloader"
@@ -74,7 +74,7 @@ android {
 
 dependencies {
     // AndroidX & UI
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.constraintlayout:constraintlayout:2.2.2")
