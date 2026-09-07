@@ -6,9 +6,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.provider.DocumentsContract
 import android.util.Log
+import android.webkit.MimeTypeMap
 import androidx.core.app.NotificationCompat
 import com.media.downloader.DownloaderApp
 import com.media.downloader.MainActivity
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileInputStream
 
 class DownloadService : Service() {
 
@@ -43,6 +47,9 @@ class DownloadService : Service() {
         const val EXTRA_TYPE = "extra_type"
         const val EXTRA_QUALITY = "extra_quality"
         const val EXTRA_SUBTITLE_LANG = "extra_subtitle_lang"
+        const val EXTRA_AUDIO_QUALITY = "extra_audio_quality"
+        const val EXTRA_PLAYLIST = "extra_playlist"
+        const val EXTRA_OUTPUT_TREE_URI = "extra_output_tree_uri"
 
         data class DownloadProgress(
             val isDownloading: Boolean = false,
@@ -64,7 +71,10 @@ class DownloadService : Service() {
             url: String,
             type: DownloadType,
             quality: String?,
-            subtitleLang: String?
+            subtitleLang: String?,
+            audioQuality: String?,
+            playlist: Boolean,
+            outputTreeUri: String?
         ) {
             val intent = Intent(context, DownloadService::class.java).apply {
                 action = ACTION_START_DOWNLOAD
@@ -72,6 +82,9 @@ class DownloadService : Service() {
                 putExtra(EXTRA_TYPE, type.name)
                 putExtra(EXTRA_QUALITY, quality)
                 putExtra(EXTRA_SUBTITLE_LANG, subtitleLang)
+                putExtra(EXTRA_AUDIO_QUALITY, audioQuality)
+                putExtra(EXTRA_PLAYLIST, playlist)
+                putExtra(EXTRA_OUTPUT_TREE_URI, outputTreeUri)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -98,9 +111,12 @@ class DownloadService : Service() {
                 val type = DownloadType.valueOf(typeName)
                 val quality = intent.getStringExtra(EXTRA_QUALITY)
                 val subtitleLang = intent.getStringExtra(EXTRA_SUBTITLE_LANG)
+                val audioQuality = intent.getStringExtra(EXTRA_AUDIO_QUALITY)
+                val playlist = intent.getBooleanExtra(EXTRA_PLAYLIST, false)
+                val outputTreeUri = intent.getStringExtra(EXTRA_OUTPUT_TREE_URI)
 
                 startForegroundNotification()
-                executeDownload(url, type, quality, subtitleLang)
+                executeDownload(url, type, quality, subtitleLang, audioQuality, playlist, outputTreeUri)
             }
             ACTION_CANCEL_DOWNLOAD -> {
                 cancelCurrentDownload()
@@ -149,7 +165,10 @@ class DownloadService : Service() {
         url: String,
         type: DownloadType,
         quality: String?,
-        subtitleLang: String?
+        subtitleLang: String?,
+        audioQuality: String?,
+        playlist: Boolean,
+        outputTreeUri: String?
     ) {
         val processId = "dl_${System.currentTimeMillis()}"
         currentProcessId = processId
@@ -158,12 +177,19 @@ class DownloadService : Service() {
             _progressState.value = DownloadProgress(isDownloading = true, progress = 0f)
 
             try {
-                val outputDir = MediaUtils.getDownloadDir(this@DownloadService)
+                val selectedTree = outputTreeUri?.let(Uri::parse)
+                val outputDir = if (selectedTree == null) {
+                    MediaUtils.getDownloadDir(this@DownloadService)
+                } else {
+                    File(cacheDir, "download-staging/$processId").apply { mkdirs() }
+                }
                 val request = MediaUtils.buildYoutubeDLRequest(
                     url = url,
                     type = type,
                     quality = quality,
                     subtitleLang = subtitleLang,
+                    audioQuality = audioQuality,
+                    playlist = playlist,
                     outputDir = outputDir
                 )
 
@@ -181,9 +207,18 @@ class DownloadService : Service() {
                     )
                 }
 
-                // Scan all recently modified files in outputDir
-                outputDir.listFiles()?.forEach { file ->
-                    MediaUtils.scanMediaFile(this@DownloadService, file)
+                if (selectedTree != null) {
+                    _progressState.value = DownloadProgress(
+                        isDownloading = true,
+                        progress = 100f,
+                        logLine = "Saving files to selected folder…"
+                    )
+                    copyToDocumentTree(outputDir, selectedTree)
+                    outputDir.deleteRecursively()
+                } else {
+                    outputDir.walkTopDown().filter { it.isFile }.forEach { file ->
+                        MediaUtils.scanMediaFile(this@DownloadService, file)
+                    }
                 }
 
                 _progressState.value = DownloadProgress(
@@ -203,6 +238,43 @@ class DownloadService : Service() {
             } finally {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+            }
+        }
+    }
+
+    private fun copyToDocumentTree(sourceDir: File, treeUri: Uri) {
+        val rootDocument = DocumentsContract.buildDocumentUriUsingTree(
+            treeUri,
+            DocumentsContract.getTreeDocumentId(treeUri)
+        )
+        copyDirectoryContents(sourceDir, rootDocument)
+    }
+
+    private fun copyDirectoryContents(sourceDir: File, destination: Uri) {
+        sourceDir.listFiles()?.forEach { source ->
+            if (source.isDirectory) {
+                val childDirectory = DocumentsContract.createDocument(
+                    contentResolver,
+                    destination,
+                    DocumentsContract.Document.MIME_TYPE_DIR,
+                    source.name
+                ) ?: error("Could not create folder ${source.name}")
+                copyDirectoryContents(source, childDirectory)
+            } else {
+                val mimeType = MimeTypeMap.getSingleton()
+                    .getMimeTypeFromExtension(source.extension.lowercase())
+                    ?: "application/octet-stream"
+                val child = DocumentsContract.createDocument(
+                    contentResolver,
+                    destination,
+                    mimeType,
+                    source.name
+                ) ?: error("Could not create ${source.name}")
+                FileInputStream(source).use { input ->
+                    contentResolver.openOutputStream(child, "w")?.use { output ->
+                        input.copyTo(output)
+                    } ?: error("Could not write ${source.name}")
+                }
             }
         }
     }

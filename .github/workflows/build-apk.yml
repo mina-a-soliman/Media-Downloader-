@@ -30,16 +30,19 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.7
+          gradle-version: 9.7.1
 
       - name: Ensure Gradle Wrapper is Ready
         run: |
           if [ ! -f "gradlew" ] || [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
             echo "Generating Gradle Wrapper..."
-            gradle wrapper --gradle-version 8.7 --distribution-type bin
+            gradle wrapper --gradle-version 9.7.1 --distribution-type bin
           fi
           chmod +x gradlew
 
@@ -53,19 +56,19 @@ jobs:
           
           # Copy arm64-v8a (Lightweight ~40MB APK for 99% of modern phones)
           if [ -f "app/build/outputs/apk/debug/app-arm64-v8a-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk output_apk/MediaDownloader-v1.0.0-arm64-v8a.apk
+            cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk output_apk/MediaDownloader-v1.1.0-arm64-v8a.apk
           fi
 
           # Copy armeabi-v7a (Lightweight ~35MB APK for older 32-bit phones)
           if [ -f "app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk output_apk/MediaDownloader-v1.0.0-armeabi-v7a.apk
+            cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk output_apk/MediaDownloader-v1.1.0-armeabi-v7a.apk
           fi
 
           # Copy universal APK if generated
           if [ -f "app/build/outputs/apk/debug/app-universal-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-universal-debug.apk output_apk/MediaDownloader-v1.0.0-universal.apk
+            cp app/build/outputs/apk/debug/app-universal-debug.apk output_apk/MediaDownloader-v1.1.0-universal.apk
           elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk output_apk/MediaDownloader-v1.0.0-universal.apk
+            cp app/build/outputs/apk/debug/app-debug.apk output_apk/MediaDownloader-v1.1.0-universal.apk
           fi
 
           echo "=== Prepared APKs ==="
@@ -75,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MediaDownloader-Lite-arm64-v8a
-          path: output_apk/MediaDownloader-v1.0.0-arm64-v8a.apk
+          path: output_apk/MediaDownloader-v1.1.0-arm64-v8a.apk
           retention-days: 30
 
       - name: Upload All APK Variants

@@ -4,6 +4,11 @@
     <string name="paste_button">Paste</string>
     <string name="clear_button">Clear</string>
     <string name="download_button">Download</string>
+    <string name="download_playlist">Download full playlist</string>
+    <string name="choose_folder">Choose save folder</string>
+    <string name="default_folder">Downloads/MediaDownloader (default)</string>
+    <string name="use_default_folder">Use default folder</string>
+    <string name="mp3_quality">MP3 Quality</string>
     <string name="cancel_button">Cancel</string>
 
     <!-- Download Modes -->
@@ -17,6 +22,12 @@
     <string name="quality_720p">720p (HD)</string>
     <string name="quality_480p">480p (SD)</string>
     <string name="quality_360p">360p (Low)</string>
+
+    <string name="mp3_best">Best quality (VBR)</string>
+    <string name="mp3_320">320 kbps</string>
+    <string name="mp3_256">256 kbps</string>
+    <string name="mp3_192">192 kbps</string>
+    <string name="mp3_128">128 kbps</string>
 
     <!-- Subtitle Options -->
     <string name="sub_all">All Subtitles</string>

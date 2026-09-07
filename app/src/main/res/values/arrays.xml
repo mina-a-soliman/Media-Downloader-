@@ -8,6 +8,14 @@
         <item>@string/quality_360p</item>
     </string-array>
 
+    <string-array name="mp3_qualities_array">
+        <item>@string/mp3_best</item>
+        <item>@string/mp3_320</item>
+        <item>@string/mp3_256</item>
+        <item>@string/mp3_192</item>
+        <item>@string/mp3_128</item>
+    </string-array>
+
     <string-array name="subtitles_array">
         <item>@string/sub_all</item>
         <item>@string/sub_en</item>

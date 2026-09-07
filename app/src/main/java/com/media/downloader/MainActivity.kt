@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
@@ -39,10 +40,35 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        private const val PREFS_NAME = "download_preferences"
+        private const val PREF_OUTPUT_TREE_URI = "output_tree_uri"
+    }
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var downloadAdapter: DownloadAdapter
 
     private var currentMode: DownloadType = DownloadType.VIDEO
+    private var outputTreeUri: Uri? = null
+
+    private val folderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri ?: return@registerForActivityResult
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            outputTreeUri = uri
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(PREF_OUTPUT_TREE_URI, uri.toString())
+                .apply()
+            updateFolderLabel()
+        } catch (e: SecurityException) {
+            Toast.makeText(this, "This folder cannot be used", Toast.LENGTH_LONG).show()
+        }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -65,6 +91,7 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         setupDropdowns()
         setupRecyclerView()
+        restoreOutputFolder()
         observeProgress()
         handleIntent(intent)
         loadHistory()
@@ -139,16 +166,19 @@ class MainActivity : AppCompatActivity() {
                     R.id.btnModeVideo -> {
                         currentMode = DownloadType.VIDEO
                         binding.tilQuality.visibility = View.VISIBLE
+                        binding.tilMp3Quality.visibility = View.GONE
                         binding.tilSubtitleLang.visibility = View.GONE
                     }
                     R.id.btnModeMp3 -> {
                         currentMode = DownloadType.AUDIO_MP3
                         binding.tilQuality.visibility = View.GONE
+                        binding.tilMp3Quality.visibility = View.VISIBLE
                         binding.tilSubtitleLang.visibility = View.GONE
                     }
                     R.id.btnModeSubtitles -> {
                         currentMode = DownloadType.SUBTITLES
                         binding.tilQuality.visibility = View.GONE
+                        binding.tilMp3Quality.visibility = View.GONE
                         binding.tilSubtitleLang.visibility = View.VISIBLE
                     }
                 }
@@ -158,6 +188,26 @@ class MainActivity : AppCompatActivity() {
         // Download button click
         binding.btnDownload.setOnClickListener {
             checkPermissionsAndDownload()
+        }
+
+        binding.btnChooseFolder.setOnClickListener {
+            folderLauncher.launch(outputTreeUri)
+        }
+
+        binding.btnResetFolder.setOnClickListener {
+            outputTreeUri?.let { uri ->
+                runCatching {
+                    contentResolver.releasePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                }
+            }
+            outputTreeUri = null
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .remove(PREF_OUTPUT_TREE_URI)
+                .apply()
+            updateFolderLabel()
         }
 
         // Refresh downloads list
@@ -174,6 +224,30 @@ class MainActivity : AppCompatActivity() {
         val subtitles = resources.getStringArray(R.array.subtitles_array)
         val subAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, subtitles)
         binding.actvSubtitleLang.setAdapter(subAdapter)
+
+        val mp3Qualities = resources.getStringArray(R.array.mp3_qualities_array)
+        binding.actvMp3Quality.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, mp3Qualities)
+        )
+    }
+
+    private fun restoreOutputFolder() {
+        val saved = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getString(PREF_OUTPUT_TREE_URI, null)
+        outputTreeUri = saved?.let(Uri::parse)?.takeIf { uri ->
+            contentResolver.persistedUriPermissions.any { it.uri == uri && it.isWritePermission }
+        }
+        updateFolderLabel()
+    }
+
+    private fun updateFolderLabel() {
+        binding.tvSaveFolder.text = outputTreeUri?.let { uri ->
+            runCatching {
+                val documentId = android.provider.DocumentsContract.getTreeDocumentId(uri)
+                "Selected: ${documentId.substringAfterLast(':')}"
+            }.getOrDefault("Selected folder")
+        } ?: getString(R.string.default_folder)
+        binding.btnResetFolder.visibility = if (outputTreeUri == null) View.GONE else View.VISIBLE
     }
 
     private fun setupRecyclerView() {
@@ -222,13 +296,17 @@ class MainActivity : AppCompatActivity() {
         val url = binding.etUrl.text?.toString()?.trim().orEmpty()
         val quality = binding.actvQuality.text?.toString()
         val subLang = binding.actvSubtitleLang.text?.toString()
+        val audioQuality = binding.actvMp3Quality.text?.toString()
 
         DownloadService.startDownload(
             context = this,
             url = url,
             type = currentMode,
             quality = quality,
-            subtitleLang = subLang
+            subtitleLang = subLang,
+            audioQuality = audioQuality,
+            playlist = binding.cbPlaylist.isChecked,
+            outputTreeUri = outputTreeUri?.toString()
         )
         binding.cardProgress.visibility = View.VISIBLE
     }

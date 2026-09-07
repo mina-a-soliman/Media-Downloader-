@@ -59,15 +59,22 @@ object MediaUtils {
         type: DownloadType,
         quality: String?,
         subtitleLang: String?,
+        audioQuality: String?,
+        playlist: Boolean,
         outputDir: File
     ): YoutubeDLRequest {
         val request = YoutubeDLRequest(url)
 
         // General output template: Title.ext
-        val template = "${outputDir.absolutePath}/%(title)s.%(ext)s"
+        val outputName = if (playlist) {
+            "%(playlist_title|Playlist)s/%(playlist_index)03d - %(title)s.%(ext)s"
+        } else {
+            "%(title)s.%(ext)s"
+        }
+        val template = "${outputDir.absolutePath}/$outputName"
         request.addOption("-o", template)
         request.addOption("--no-mtime")
-        request.addOption("--no-playlist")
+        request.addOption(if (playlist) "--yes-playlist" else "--no-playlist")
         request.addOption("--socket-timeout", "30")
 
         when (type) {
@@ -86,7 +93,14 @@ object MediaUtils {
             DownloadType.AUDIO_MP3 -> {
                 request.addOption("-x")
                 request.addOption("--audio-format", "mp3")
-                request.addOption("--audio-quality", "0")
+                val mp3Quality = when (audioQuality) {
+                    "320 kbps" -> "320K"
+                    "256 kbps" -> "256K"
+                    "192 kbps" -> "192K"
+                    "128 kbps" -> "128K"
+                    else -> "0"
+                }
+                request.addOption("--audio-quality", mp3Quality)
                 request.addOption("--embed-metadata")
             }
 

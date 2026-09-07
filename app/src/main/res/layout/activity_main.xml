@@ -188,6 +188,59 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilMp3Quality"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/mp3_quality"
+                        android:visibility="gone">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/actvMp3Quality"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="none"
+                            android:text="@string/mp3_best" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPlaylist"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/download_playlist" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnChooseFolder"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/choose_folder"
+                        app:icon="@android:drawable/ic_menu_save" />
+
+                    <TextView
+                        android:id="@+id/tvSaveFolder"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:ellipsize="middle"
+                        android:maxLines="1"
+                        android:text="@string/default_folder"
+                        android:textAppearance="?attr/textAppearanceCaption"
+                        android:textColor="@color/text_secondary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnResetFolder"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:text="@string/use_default_folder"
+                        android:visibility="gone" />
+
                     <!-- Subtitle Language Selector -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilSubtitleLang"

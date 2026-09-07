@@ -21,8 +21,11 @@ The included **GitHub Actions workflow** compiles and builds the APK in the clou
     - **480p (SD)**
     - **360p (Low)**
   - Merges video and audio streams seamlessly into `.mp4` using embedded FFmpeg.
+- 📚 **Playlist Download**:
+  - Enable **Download full playlist** to save every item in an organized playlist folder.
 - 🎵 **Audio (MP3) Extraction**:
-  - Automatically extracts audio from videos and converts to high-bitrate `.mp3` with embedded metadata (title, artist).
+  - Converts videos or complete playlists to `.mp3` with embedded metadata.
+  - Choose best-quality VBR or 320, 256, 192, and 128 kbps output.
 - 📝 **Subtitles Download**:
   - Download subtitles in `.srt` or `.vtt` format.
   - Multi-language support (English, Arabic, Spanish, French, or All).
@@ -32,6 +35,7 @@ The included **GitHub Actions workflow** compiles and builds the APK in the clou
   - Platforms frequently change their video player formats. You can update the core `yt-dlp` engine directly inside the app with 1 tap (Toolbar ➔ **Update yt-dlp Engine**) without needing to reinstall the app.
 - 📁 **Public Gallery & Music Scanner**:
   - Saved files go directly to your device's `Download/MediaDownloader/` folder and are registered with Android's MediaStore so they show up instantly in your Gallery and Music player.
+  - Or use **Choose save folder** to select any folder exposed by Android's system folder picker. Access is remembered across app restarts.
 
 ---
 
