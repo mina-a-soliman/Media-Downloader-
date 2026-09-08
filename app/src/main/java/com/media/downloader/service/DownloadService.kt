@@ -46,6 +46,7 @@ class DownloadService : Service() {
         const val ACTION_START_DOWNLOAD = "com.media.downloader.action.START_DOWNLOAD"
         const val ACTION_CANCEL_DOWNLOAD = "com.media.downloader.action.CANCEL_DOWNLOAD"
         const val ACTION_EXTRACT_AUDIO = "com.media.downloader.action.EXTRACT_AUDIO"
+        const val ACTION_BURN_SUBTITLES = "com.media.downloader.action.BURN_SUBTITLES"
 
         const val EXTRA_URL = "extra_url"
         const val EXTRA_TYPE = "extra_type"
@@ -55,6 +56,7 @@ class DownloadService : Service() {
         const val EXTRA_PLAYLIST = "extra_playlist"
         const val EXTRA_OUTPUT_TREE_URI = "extra_output_tree_uri"
         const val EXTRA_VIDEO_URI = "extra_video_uri"
+        const val EXTRA_SUBTITLE_URI = "extra_subtitle_uri"
 
         data class DownloadProgress(
             val isDownloading: Boolean = false,
@@ -123,6 +125,25 @@ class DownloadService : Service() {
                 context.startService(intent)
             }
         }
+
+        fun startSubtitleBurn(
+            context: Context,
+            videoUri: String,
+            subtitleUri: String,
+            outputTreeUri: String?
+        ) {
+            val intent = Intent(context, DownloadService::class.java).apply {
+                action = ACTION_BURN_SUBTITLES
+                putExtra(EXTRA_VIDEO_URI, videoUri)
+                putExtra(EXTRA_SUBTITLE_URI, subtitleUri)
+                putExtra(EXTRA_OUTPUT_TREE_URI, outputTreeUri)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -151,6 +172,16 @@ class DownloadService : Service() {
                 executeAudioExtraction(
                     Uri.parse(videoUri),
                     intent.getStringExtra(EXTRA_AUDIO_QUALITY),
+                    intent.getStringExtra(EXTRA_OUTPUT_TREE_URI)
+                )
+            }
+            ACTION_BURN_SUBTITLES -> {
+                val videoUri = intent.getStringExtra(EXTRA_VIDEO_URI) ?: return START_NOT_STICKY
+                val subtitleUri = intent.getStringExtra(EXTRA_SUBTITLE_URI) ?: return START_NOT_STICKY
+                startForegroundNotification()
+                executeSubtitleBurn(
+                    Uri.parse(videoUri),
+                    Uri.parse(subtitleUri),
                     intent.getStringExtra(EXTRA_OUTPUT_TREE_URI)
                 )
             }
@@ -349,6 +380,87 @@ class DownloadService : Service() {
                 stopSelf()
             }
         }
+    }
+
+    private fun executeSubtitleBurn(videoUri: Uri, subtitleUri: Uri, outputTreeUri: String?) {
+        serviceScope.launch {
+            val workDir = File(cacheDir, "subtitle-burn/${System.currentTimeMillis()}").apply { mkdirs() }
+            try {
+                _progressState.value = DownloadProgress(isDownloading = true, logLine = "Preparing video and subtitles…")
+                val videoName = queryDisplayName(videoUri) ?: "video.mp4"
+                val subtitleName = queryDisplayName(subtitleUri) ?: "subtitles.srt"
+                val baseName = videoName.substringBeforeLast('.')
+                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .ifBlank { "video-with-subtitles" }
+                val input = File(workDir, "input.${videoName.substringAfterLast('.', "mp4")}")
+                val subtitle = File(workDir, "subtitles.${subtitleName.substringAfterLast('.', "srt")}")
+                copyUriToFile(videoUri, input)
+                copyUriToFile(subtitleUri, subtitle)
+
+                val selectedTree = outputTreeUri?.let(Uri::parse)
+                val outputDir = if (selectedTree == null) {
+                    MediaUtils.getDownloadDir(this@DownloadService)
+                } else {
+                    File(workDir, "output").apply { mkdirs() }
+                }
+                val output = uniqueFile(outputDir, "$baseName-hardcoded.mp4")
+                val ffmpeg = findFfmpegBinary()
+                val subtitlePath = subtitle.absolutePath
+                    .replace("\\", "\\\\")
+                    .replace(":", "\\:")
+                    .replace("'", "\\'")
+
+                updateNotification("Burning subtitles into video…", 0)
+                val command = listOf(
+                    ffmpeg.absolutePath, "-y", "-i", input.absolutePath,
+                    "-vf", "subtitles='$subtitlePath'",
+                    "-map", "0:v:0", "-map", "0:a?",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+                    output.absolutePath
+                )
+                val process = ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .apply {
+                        environment()["LD_LIBRARY_PATH"] =
+                            ffmpeg.parentFile?.parentFile?.resolve("lib")?.absolutePath.orEmpty()
+                    }
+                    .start()
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        _progressState.value = DownloadProgress(isDownloading = true, logLine = line)
+                    }
+                }
+                if (process.waitFor() != 0 || !output.exists()) {
+                    error("FFmpeg could not burn subtitles into this video")
+                }
+
+                if (selectedTree != null) {
+                    copyToDocumentTree(outputDir, selectedTree, preserveDirectories = false)
+                } else {
+                    MediaUtils.scanMediaFile(this@DownloadService, output, "video/mp4")
+                }
+                _progressState.value = DownloadProgress(
+                    isCompleted = true,
+                    progress = 100f,
+                    logLine = "Subtitles burned into video!"
+                )
+                _completedEvent.emit(output)
+            } catch (e: Exception) {
+                Log.e(TAG, "Subtitle burn failed", e)
+                _progressState.value = DownloadProgress(error = e.message ?: "Subtitle burn failed")
+            } finally {
+                workDir.deleteRecursively()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
+    }
+
+    private fun copyUriToFile(uri: Uri, destination: File) {
+        contentResolver.openInputStream(uri)?.use { source ->
+            FileOutputStream(destination).use { target -> source.copyTo(target) }
+        } ?: error("Could not open selected file")
     }
 
     private fun queryDisplayName(uri: Uri): String? = contentResolver.query(

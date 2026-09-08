@@ -10,6 +10,7 @@
     <string name="use_default_folder">Use default folder</string>
     <string name="mp3_quality">MP3 Quality</string>
     <string name="extract_local_video">Extract MP3 from device video</string>
+    <string name="burn_subtitles">Burn subtitles into device video</string>
     <string name="cancel_button">Cancel</string>
 
     <!-- Download Modes -->

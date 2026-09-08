@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentMode: DownloadType = DownloadType.VIDEO
     private var outputTreeUri: Uri? = null
+    private var subtitleBurnVideoUri: Uri? = null
 
     private val videoLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -62,6 +63,39 @@ class MainActivity : AppCompatActivity() {
             context = this,
             videoUri = uri.toString(),
             audioQuality = binding.actvMp3Quality.text?.toString(),
+            outputTreeUri = outputTreeUri?.toString()
+        )
+        binding.cardProgress.visibility = View.VISIBLE
+    }
+
+    private val subtitleBurnVideoLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri ?: return@registerForActivityResult
+        subtitleBurnVideoUri = uri
+        subtitleLauncher.launch(arrayOf("text/srt", "text/vtt", "application/x-subrip", "text/*"))
+    }
+
+    private val subtitleLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { subtitleUri ->
+        val videoUri = subtitleBurnVideoUri
+        subtitleBurnVideoUri = null
+        if (subtitleUri == null || videoUri == null) return@registerForActivityResult
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                videoUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            contentResolver.takePersistableUriPermission(
+                subtitleUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+        DownloadService.startSubtitleBurn(
+            context = this,
+            videoUri = videoUri.toString(),
+            subtitleUri = subtitleUri.toString(),
             outputTreeUri = outputTreeUri?.toString()
         )
         binding.cardProgress.visibility = View.VISIBLE
@@ -141,6 +175,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
+        binding.btnBurnSubtitles.visibility = View.VISIBLE
+
         // Paste button
         binding.btnPaste.setOnClickListener {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -185,6 +221,7 @@ class MainActivity : AppCompatActivity() {
                         binding.tilMp3Quality.visibility = View.GONE
                         binding.tilSubtitleLang.visibility = View.GONE
                         binding.btnExtractLocalVideo.visibility = View.GONE
+                        binding.btnBurnSubtitles.visibility = View.VISIBLE
                     }
                     R.id.btnModeMp3 -> {
                         currentMode = DownloadType.AUDIO_MP3
@@ -192,6 +229,7 @@ class MainActivity : AppCompatActivity() {
                         binding.tilMp3Quality.visibility = View.VISIBLE
                         binding.tilSubtitleLang.visibility = View.GONE
                         binding.btnExtractLocalVideo.visibility = View.VISIBLE
+                        binding.btnBurnSubtitles.visibility = View.GONE
                     }
                     R.id.btnModeSubtitles -> {
                         currentMode = DownloadType.SUBTITLES
@@ -199,6 +237,7 @@ class MainActivity : AppCompatActivity() {
                         binding.tilMp3Quality.visibility = View.GONE
                         binding.tilSubtitleLang.visibility = View.VISIBLE
                         binding.btnExtractLocalVideo.visibility = View.GONE
+                        binding.btnBurnSubtitles.visibility = View.GONE
                     }
                 }
             }
@@ -211,6 +250,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnExtractLocalVideo.setOnClickListener {
             videoLauncher.launch(arrayOf("video/*"))
+        }
+
+        binding.btnBurnSubtitles.setOnClickListener {
+            subtitleBurnVideoLauncher.launch(arrayOf("video/*"))
         }
 
         binding.btnChooseFolder.setOnClickListener {
@@ -342,6 +385,7 @@ class MainActivity : AppCompatActivity() {
                         binding.cardProgress.visibility = View.VISIBLE
                         binding.btnDownload.isEnabled = false
                         binding.btnExtractLocalVideo.isEnabled = false
+                        binding.btnBurnSubtitles.isEnabled = false
 
                         if (state.progress > 0) {
                             binding.progressBar.isIndeterminate = false
@@ -357,6 +401,7 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         binding.btnDownload.isEnabled = true
                         binding.btnExtractLocalVideo.isEnabled = true
+                        binding.btnBurnSubtitles.isEnabled = true
                         if (state.isCompleted) {
                             binding.cardProgress.visibility = View.GONE
                             Toast.makeText(this@MainActivity, R.string.status_completed, Toast.LENGTH_SHORT).show()
