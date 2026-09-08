@@ -9,6 +9,7 @@
     <string name="default_folder">Downloads/MediaDownloader (default)</string>
     <string name="use_default_folder">Use default folder</string>
     <string name="mp3_quality">MP3 Quality</string>
+    <string name="extract_local_video">Extract MP3 from device video</string>
     <string name="cancel_button">Cancel</string>
 
     <!-- Download Modes -->
@@ -40,6 +41,7 @@
     <string name="status_ready">Ready to download</string>
     <string name="status_downloading">Downloading…</string>
     <string name="status_processing">Converting / Processing with FFmpeg…</string>
+    <string name="status_extracting">Extracting audio…</string>
     <string name="status_completed">Download completed successfully!</string>
     <string name="status_failed">Download failed</string>
     <string name="status_updating">Updating yt-dlp engine…</string>

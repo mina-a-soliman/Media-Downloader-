@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.app.NotificationCompat
@@ -18,6 +19,7 @@ import com.media.downloader.MainActivity
 import com.media.downloader.R
 import com.media.downloader.model.DownloadType
 import com.media.downloader.util.MediaUtils
+import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 
 class DownloadService : Service() {
 
@@ -42,6 +45,7 @@ class DownloadService : Service() {
 
         const val ACTION_START_DOWNLOAD = "com.media.downloader.action.START_DOWNLOAD"
         const val ACTION_CANCEL_DOWNLOAD = "com.media.downloader.action.CANCEL_DOWNLOAD"
+        const val ACTION_EXTRACT_AUDIO = "com.media.downloader.action.EXTRACT_AUDIO"
 
         const val EXTRA_URL = "extra_url"
         const val EXTRA_TYPE = "extra_type"
@@ -50,6 +54,7 @@ class DownloadService : Service() {
         const val EXTRA_AUDIO_QUALITY = "extra_audio_quality"
         const val EXTRA_PLAYLIST = "extra_playlist"
         const val EXTRA_OUTPUT_TREE_URI = "extra_output_tree_uri"
+        const val EXTRA_VIDEO_URI = "extra_video_uri"
 
         data class DownloadProgress(
             val isDownloading: Boolean = false,
@@ -99,6 +104,25 @@ class DownloadService : Service() {
             }
             context.startService(intent)
         }
+
+        fun startAudioExtraction(
+            context: Context,
+            videoUri: String,
+            audioQuality: String?,
+            outputTreeUri: String?
+        ) {
+            val intent = Intent(context, DownloadService::class.java).apply {
+                action = ACTION_EXTRACT_AUDIO
+                putExtra(EXTRA_VIDEO_URI, videoUri)
+                putExtra(EXTRA_AUDIO_QUALITY, audioQuality)
+                putExtra(EXTRA_OUTPUT_TREE_URI, outputTreeUri)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -120,6 +144,15 @@ class DownloadService : Service() {
             }
             ACTION_CANCEL_DOWNLOAD -> {
                 cancelCurrentDownload()
+            }
+            ACTION_EXTRACT_AUDIO -> {
+                val videoUri = intent.getStringExtra(EXTRA_VIDEO_URI) ?: return START_NOT_STICKY
+                startForegroundNotification()
+                executeAudioExtraction(
+                    Uri.parse(videoUri),
+                    intent.getStringExtra(EXTRA_AUDIO_QUALITY),
+                    intent.getStringExtra(EXTRA_OUTPUT_TREE_URI)
+                )
             }
         }
         return START_NOT_STICKY
@@ -213,7 +246,7 @@ class DownloadService : Service() {
                         progress = 100f,
                         logLine = "Saving files to selected folder…"
                     )
-                    copyToDocumentTree(outputDir, selectedTree)
+                    copyToDocumentTree(outputDir, selectedTree, preserveDirectories = playlist)
                     outputDir.deleteRecursively()
                 } else {
                     outputDir.walkTopDown().filter { it.isFile }.forEach { file ->
@@ -242,12 +275,127 @@ class DownloadService : Service() {
         }
     }
 
-    private fun copyToDocumentTree(sourceDir: File, treeUri: Uri) {
+    private fun executeAudioExtraction(videoUri: Uri, audioQuality: String?, outputTreeUri: String?) {
+        serviceScope.launch {
+            val workDir = File(cacheDir, "audio-extraction/${System.currentTimeMillis()}").apply { mkdirs() }
+            try {
+                _progressState.value = DownloadProgress(isDownloading = true, logLine = "Preparing video…")
+                val displayName = queryDisplayName(videoUri) ?: "video.mp4"
+                val baseName = displayName.substringBeforeLast('.')
+                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .ifBlank { "extracted-audio" }
+                val input = File(workDir, "input.${displayName.substringAfterLast('.', "mp4")}")
+                contentResolver.openInputStream(videoUri)?.use { source ->
+                    FileOutputStream(input).use { target -> source.copyTo(target) }
+                } ?: error("Could not open the selected video")
+
+                val selectedTree = outputTreeUri?.let(Uri::parse)
+                val outputDir = if (selectedTree == null) {
+                    MediaUtils.getDownloadDir(this@DownloadService)
+                } else {
+                    File(workDir, "output").apply { mkdirs() }
+                }
+                val output = uniqueFile(outputDir, "$baseName.mp3")
+                val ffmpeg = findFfmpegBinary()
+                val qualityArgs = when (audioQuality) {
+                    "320 kbps" -> listOf("-b:a", "320k")
+                    "256 kbps" -> listOf("-b:a", "256k")
+                    "192 kbps" -> listOf("-b:a", "192k")
+                    "128 kbps" -> listOf("-b:a", "128k")
+                    else -> listOf("-q:a", "0")
+                }
+
+                _progressState.value = DownloadProgress(isDownloading = true, logLine = "Extracting MP3 audio…")
+                updateNotification(getString(R.string.status_extracting), 0)
+                val command = mutableListOf(
+                    ffmpeg.absolutePath, "-y", "-i", input.absolutePath,
+                    "-vn", "-codec:a", "libmp3lame"
+                )
+                command.addAll(qualityArgs)
+                command.add(output.absolutePath)
+                val process = ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .apply {
+                        environment()["LD_LIBRARY_PATH"] =
+                            ffmpeg.parentFile?.parentFile?.resolve("lib")?.absolutePath.orEmpty()
+                    }
+                    .start()
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        _progressState.value = DownloadProgress(isDownloading = true, logLine = line)
+                    }
+                }
+                if (process.waitFor() != 0 || !output.exists()) {
+                    error("FFmpeg could not extract audio from this video")
+                }
+
+                if (selectedTree != null) {
+                    copyToDocumentTree(outputDir, selectedTree, preserveDirectories = false)
+                } else {
+                    MediaUtils.scanMediaFile(this@DownloadService, output, "audio/mpeg")
+                }
+                _progressState.value = DownloadProgress(
+                    isCompleted = true,
+                    progress = 100f,
+                    logLine = "MP3 extraction completed!"
+                )
+                _completedEvent.emit(output)
+            } catch (e: Exception) {
+                Log.e(TAG, "Audio extraction failed", e)
+                _progressState.value = DownloadProgress(error = e.message ?: "Audio extraction failed")
+            } finally {
+                workDir.deleteRecursively()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
+    }
+
+    private fun queryDisplayName(uri: Uri): String? = contentResolver.query(
+        uri,
+        arrayOf(OpenableColumns.DISPLAY_NAME),
+        null,
+        null,
+        null
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
+
+    private fun uniqueFile(directory: File, requestedName: String): File {
+        var candidate = File(directory, requestedName)
+        var suffix = 1
+        val stem = requestedName.substringBeforeLast('.')
+        val extension = requestedName.substringAfterLast('.', "mp3")
+        while (candidate.exists()) {
+            candidate = File(directory, "$stem ($suffix).$extension")
+            suffix++
+        }
+        return candidate
+    }
+
+    private fun findFfmpegBinary(): File {
+        FFmpeg.getInstance().init(applicationContext)
+        val root = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg")
+        return root.walkTopDown().firstOrNull { it.isFile && it.name == "ffmpeg" }
+            ?: error("FFmpeg executable is unavailable")
+    }
+
+    private fun copyToDocumentTree(
+        sourceDir: File,
+        treeUri: Uri,
+        preserveDirectories: Boolean
+    ) {
         val rootDocument = DocumentsContract.buildDocumentUriUsingTree(
             treeUri,
             DocumentsContract.getTreeDocumentId(treeUri)
         )
-        copyDirectoryContents(sourceDir, rootDocument)
+        if (preserveDirectories) {
+            copyDirectoryContents(sourceDir, rootDocument)
+        } else {
+            sourceDir.walkTopDown()
+                .filter { it.isFile }
+                .forEach { copyFileToDocument(it, rootDocument) }
+        }
     }
 
     private fun copyDirectoryContents(sourceDir: File, destination: Uri) {
@@ -261,21 +409,25 @@ class DownloadService : Service() {
                 ) ?: error("Could not create folder ${source.name}")
                 copyDirectoryContents(source, childDirectory)
             } else {
-                val mimeType = MimeTypeMap.getSingleton()
-                    .getMimeTypeFromExtension(source.extension.lowercase())
-                    ?: "application/octet-stream"
-                val child = DocumentsContract.createDocument(
-                    contentResolver,
-                    destination,
-                    mimeType,
-                    source.name
-                ) ?: error("Could not create ${source.name}")
-                FileInputStream(source).use { input ->
-                    contentResolver.openOutputStream(child, "w")?.use { output ->
-                        input.copyTo(output)
-                    } ?: error("Could not write ${source.name}")
-                }
+                copyFileToDocument(source, destination)
             }
+        }
+    }
+
+    private fun copyFileToDocument(source: File, destination: Uri) {
+        val mimeType = MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(source.extension.lowercase())
+            ?: "application/octet-stream"
+        val child = DocumentsContract.createDocument(
+            contentResolver,
+            destination,
+            mimeType,
+            source.name
+        ) ?: error("Could not create ${source.name}")
+        FileInputStream(source).use { input ->
+            contentResolver.openOutputStream(child, "w")?.use { output ->
+                input.copyTo(output)
+            } ?: error("Could not write ${source.name}")
         }
     }
 

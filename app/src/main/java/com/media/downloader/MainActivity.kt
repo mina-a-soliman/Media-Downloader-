@@ -51,6 +51,22 @@ class MainActivity : AppCompatActivity() {
     private var currentMode: DownloadType = DownloadType.VIDEO
     private var outputTreeUri: Uri? = null
 
+    private val videoLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri ?: return@registerForActivityResult
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        DownloadService.startAudioExtraction(
+            context = this,
+            videoUri = uri.toString(),
+            audioQuality = binding.actvMp3Quality.text?.toString(),
+            outputTreeUri = outputTreeUri?.toString()
+        )
+        binding.cardProgress.visibility = View.VISIBLE
+    }
+
     private val folderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -168,18 +184,21 @@ class MainActivity : AppCompatActivity() {
                         binding.tilQuality.visibility = View.VISIBLE
                         binding.tilMp3Quality.visibility = View.GONE
                         binding.tilSubtitleLang.visibility = View.GONE
+                        binding.btnExtractLocalVideo.visibility = View.GONE
                     }
                     R.id.btnModeMp3 -> {
                         currentMode = DownloadType.AUDIO_MP3
                         binding.tilQuality.visibility = View.GONE
                         binding.tilMp3Quality.visibility = View.VISIBLE
                         binding.tilSubtitleLang.visibility = View.GONE
+                        binding.btnExtractLocalVideo.visibility = View.VISIBLE
                     }
                     R.id.btnModeSubtitles -> {
                         currentMode = DownloadType.SUBTITLES
                         binding.tilQuality.visibility = View.GONE
                         binding.tilMp3Quality.visibility = View.GONE
                         binding.tilSubtitleLang.visibility = View.VISIBLE
+                        binding.btnExtractLocalVideo.visibility = View.GONE
                     }
                 }
             }
@@ -188,6 +207,10 @@ class MainActivity : AppCompatActivity() {
         // Download button click
         binding.btnDownload.setOnClickListener {
             checkPermissionsAndDownload()
+        }
+
+        binding.btnExtractLocalVideo.setOnClickListener {
+            videoLauncher.launch(arrayOf("video/*"))
         }
 
         binding.btnChooseFolder.setOnClickListener {
@@ -318,6 +341,7 @@ class MainActivity : AppCompatActivity() {
                     if (state.isDownloading) {
                         binding.cardProgress.visibility = View.VISIBLE
                         binding.btnDownload.isEnabled = false
+                        binding.btnExtractLocalVideo.isEnabled = false
 
                         if (state.progress > 0) {
                             binding.progressBar.isIndeterminate = false
@@ -332,6 +356,7 @@ class MainActivity : AppCompatActivity() {
                         binding.tvProgressLog.text = state.logLine
                     } else {
                         binding.btnDownload.isEnabled = true
+                        binding.btnExtractLocalVideo.isEnabled = true
                         if (state.isCompleted) {
                             binding.cardProgress.visibility = View.GONE
                             Toast.makeText(this@MainActivity, R.string.status_completed, Toast.LENGTH_SHORT).show()

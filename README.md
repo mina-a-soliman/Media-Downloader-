@@ -23,9 +23,11 @@ The included **GitHub Actions workflow** compiles and builds the APK in the clou
   - Merges video and audio streams seamlessly into `.mp4` using embedded FFmpeg.
 - 📚 **Playlist Download**:
   - Enable **Download full playlist** to save every item in an organized playlist folder.
+  - Single videos are saved directly in the selected folder; only playlists create their own folder.
 - 🎵 **Audio (MP3) Extraction**:
   - Converts videos or complete playlists to `.mp3` with embedded metadata.
   - Choose best-quality VBR or 320, 256, 192, and 128 kbps output.
+  - Pick an existing video from your device and extract its audio directly to MP3.
 - 📝 **Subtitles Download**:
   - Download subtitles in `.srt` or `.vtt` format.
   - Multi-language support (English, Arabic, Spanish, French, or All).
