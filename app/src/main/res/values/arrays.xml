@@ -19,6 +19,7 @@
     <string-array name="subtitles_array">
         <item>@string/sub_all</item>
         <item>@string/sub_en</item>
+        <item>@string/sub_zh</item>
         <item>@string/sub_ar</item>
         <item>@string/sub_es</item>
         <item>@string/sub_fr</item>

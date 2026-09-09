@@ -89,9 +89,9 @@ class DownloadAdapter(
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                context.startActivity(Intent.createChooser(intent, "Open with"))
+                context.startActivity(Intent.createChooser(intent, context.getString(R.string.chooser_open_with)))
             } catch (e: Exception) {
-                Toast.makeText(context, "No app available to open this file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.error_no_app_to_open, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -110,9 +110,9 @@ class DownloadAdapter(
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(intent, "Share media file"))
+                context.startActivity(Intent.createChooser(intent, context.getString(R.string.chooser_share_file)))
             } catch (e: Exception) {
-                Toast.makeText(context, "Unable to share file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.error_unable_to_share, Toast.LENGTH_SHORT).show()
             }
         }
     }

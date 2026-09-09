@@ -1,0 +1,128 @@
+<resources>
+    <string name="app_name">媒体下载器</string>
+    <string name="url_input_hint">粘贴 YouTube、Facebook 或 Instagram 链接</string>
+    <string name="paste_button">粘贴</string>
+    <string name="clear_button">清除</string>
+    <string name="download_button">下载</string>
+    <string name="download_playlist">下载完整播放列表</string>
+    <string name="choose_folder">选择保存文件夹</string>
+    <string name="default_folder">Downloads/MediaDownloader (默认)</string>
+    <string name="use_default_folder">使用默认文件夹</string>
+    <string name="mp3_quality">MP3 音质</string>
+    <string name="extract_local_video">从本地视频提取 MP3</string>
+    <string name="burn_subtitles">将字幕烧录至本地视频</string>
+    <string name="subtitle_style_title">字幕样式</string>
+    <string name="subtitle_style_confirm">使用此样式烧录</string>
+    <string name="subtitle_preview">预览</string>
+    <string name="subtitle_preview_sample">示例字幕文本</string>
+    <string name="subtitle_font">字体</string>
+    <string name="subtitle_size">字号: %d</string>
+    <string name="subtitle_text_color">文字颜色</string>
+    <string name="subtitle_outline_color">描边颜色</string>
+    <string name="subtitle_outline">描边: %d</string>
+    <string name="subtitle_shadow">阴影: %d</string>
+    <string name="subtitle_position">位置</string>
+    <string name="subtitle_pos_top">顶部</string>
+    <string name="subtitle_pos_middle">中间</string>
+    <string name="subtitle_pos_bottom">底部</string>
+    <string name="subtitle_pos_left">居左</string>
+    <string name="subtitle_pos_center">居中</string>
+    <string name="subtitle_pos_right">居右</string>
+    <string name="subtitle_margin">边距: %d</string>
+    <string name="subtitle_bold">粗体</string>
+    <string name="subtitle_italic">斜体</string>
+    <string name="subtitle_background_box">不透明背景框</string>
+    <string name="cancel_button">取消</string>
+
+    <!-- Download Modes -->
+    <string name="mode_video">视频</string>
+    <string name="mode_mp3">音频 (MP3)</string>
+    <string name="mode_subtitles">字幕</string>
+    <string name="download_format">下载格式</string>
+    <string name="video_resolution_hint">视频分辨率</string>
+    <string name="subtitle_lang_hint">字幕语言</string>
+
+    <!-- Video Quality Options -->
+    <string name="quality_best">最佳画质</string>
+    <string name="quality_1080p">1080p (超清)</string>
+    <string name="quality_720p">720p (高清)</string>
+    <string name="quality_480p">480p (标清)</string>
+    <string name="quality_360p">360p (流畅)</string>
+
+    <string name="mp3_best">最佳音质 (VBR)</string>
+    <string name="mp3_320">320 kbps</string>
+    <string name="mp3_256">256 kbps</string>
+    <string name="mp3_192">192 kbps</string>
+    <string name="mp3_128">128 kbps</string>
+
+    <!-- Subtitle Options -->
+    <string name="sub_all">所有字幕</string>
+    <string name="sub_en">英语 (en)</string>
+    <string name="sub_zh">中文 (zh)</string>
+    <string name="sub_ar">阿拉伯语 (ar)</string>
+    <string name="sub_es">西班牙语 (es)</string>
+    <string name="sub_fr">法语 (fr)</string>
+
+    <!-- Subtitle Source Selection & Paste -->
+    <string name="subtitle_source_title">选择字幕来源</string>
+    <string name="subtitle_source_file">选择 .srt / .vtt 文件</string>
+    <string name="subtitle_source_paste">粘贴字幕文本 (.srt)</string>
+    <string name="paste_subtitle_title">粘贴字幕文本</string>
+    <string name="paste_subtitle_hint">在此粘贴 .srt 格式的字幕内容…</string>
+    <string name="paste_from_clipboard">从剪贴板粘贴</string>
+    <string name="error_empty_subtitles">请输入或粘贴字幕内容</string>
+    <string name="btn_continue">继续</string>
+
+    <!-- Status & Alerts -->
+    <string name="status_ready">准备下载</string>
+    <string name="status_downloading">正在下载…</string>
+    <string name="status_processing">正在使用 FFmpeg 转换/处理…</string>
+    <string name="status_extracting">正在提取音频…</string>
+    <string name="status_burning">正在烧录字幕…</string>
+    <string name="status_completed">下载完成！</string>
+    <string name="status_failed">下载失败</string>
+    <string name="status_updating">正在更新 yt-dlp 核心引擎…</string>
+    <string name="status_updated">yt-dlp 引擎更新成功！</string>
+    <string name="status_update_failed">更新 yt-dlp 失败</string>
+    <string name="status_initializing">正在初始化…</string>
+
+    <!-- Dialogs & Error Messages -->
+    <string name="dialog_title_download_error">下载错误</string>
+    <string name="dialog_title_update_failed">更新失败</string>
+    <string name="msg_fetching_engine">正在从 GitHub 获取最新的 yt-dlp 引擎…</string>
+    <string name="btn_ok">确定</string>
+    <string name="dialog_about_title">媒体下载器</string>
+    <string name="dialog_about_message">快速通用的 YouTube、Facebook 和 Instagram 下载器。\n\n功能特色：\n• 可选清晰度的视频下载\n• 基于 FFmpeg 的高品质 MP3 提取\n• 字幕提取 (.srt / .vtt)\n• 视频硬字幕烧录\n• 原生 Android 系统分享集成\n• 内置 yt-dlp 引擎在线更新</string>
+    <string name="error_folder_cannot_be_used">无法使用此文件夹</string>
+    <string name="error_permission_required">需要存储和通知权限以完成文件下载</string>
+    <string name="error_clipboard_empty">剪贴板为空</string>
+    <string name="msg_link_received">已接收分享链接</string>
+    <string name="error_no_app_to_open">未找到可打开此文件的应用</string>
+    <string name="error_unable_to_share">无法分享文件</string>
+    <string name="chooser_open_with">打开方式</string>
+    <string name="chooser_share_file">分享媒体文件</string>
+
+    <!-- History / Recent -->
+    <string name="recent_downloads">最近下载</string>
+    <string name="no_downloads_yet">暂无下载记录</string>
+    <string name="open_file">打开</string>
+    <string name="share_file">分享</string>
+    <string name="delete_file">删除</string>
+    <string name="refresh_downloads">刷新下载列表</string>
+
+    <!-- Platform Badges -->
+    <string name="platform_youtube">YouTube</string>
+    <string name="platform_facebook">Facebook</string>
+    <string name="platform_instagram">Instagram</string>
+    <string name="platform_generic">直链视频</string>
+
+    <!-- Menu & Language Settings -->
+    <string name="action_update_engine">更新 yt-dlp 引擎</string>
+    <string name="action_about">关于</string>
+    <string name="action_language">切换语言</string>
+    <string name="language_title">选择语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_en">English (英语)</string>
+    <string name="language_zh_cn">简体中文</string>
+    <string name="language_zh_tw">繁體中文</string>
+</resources>

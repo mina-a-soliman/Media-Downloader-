@@ -35,6 +35,7 @@
         android:theme="@style/Theme.MediaDownloader"
         android:extractNativeLibs="true"
         android:requestLegacyExternalStorage="true"
+        android:localeConfig="@xml/locales_config"
         tools:targetApi="31">
 
         <activity

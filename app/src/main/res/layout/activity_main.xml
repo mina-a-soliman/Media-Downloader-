@@ -125,7 +125,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="8dp"
-                        android:text="Download Format"
+                        android:text="@string/download_format"
                         android:textAppearance="?attr/textAppearanceSubtitle2"
                         android:textStyle="bold" />
 
@@ -173,7 +173,7 @@
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Video Resolution"
+                        android:hint="@string/video_resolution_hint"
                         app:boxCornerRadiusBottomEnd="12dp"
                         app:boxCornerRadiusBottomStart="12dp"
                         app:boxCornerRadiusTopEnd="12dp"
@@ -267,7 +267,7 @@
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Subtitle Language"
+                        android:hint="@string/subtitle_lang_hint"
                         android:visibility="gone"
                         app:boxCornerRadiusBottomEnd="12dp"
                         app:boxCornerRadiusBottomStart="12dp"
@@ -399,7 +399,7 @@
                     style="@style/Widget.Material3.Button.IconButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:contentDescription="Refresh downloads"
+                    android:contentDescription="@string/refresh_downloads"
                     app:icon="@android:drawable/ic_menu_rotate" />
 
             </LinearLayout>

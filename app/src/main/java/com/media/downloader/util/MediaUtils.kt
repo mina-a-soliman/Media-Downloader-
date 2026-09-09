@@ -79,11 +79,11 @@ object MediaUtils {
 
         when (type) {
             DownloadType.VIDEO -> {
-                val formatSelection = when (quality) {
-                    "1080p (FHD)" -> "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-                    "720p (HD)" -> "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-                    "480p (SD)" -> "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-                    "360p (Low)" -> "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
+                val formatSelection = when {
+                    quality?.contains("1080") == true -> "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+                    quality?.contains("720") == true -> "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+                    quality?.contains("480") == true -> "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+                    quality?.contains("360") == true -> "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
                     else -> "bestvideo+bestaudio/best"
                 }
                 request.addOption("-f", formatSelection)
@@ -93,11 +93,11 @@ object MediaUtils {
             DownloadType.AUDIO_MP3 -> {
                 request.addOption("-x")
                 request.addOption("--audio-format", "mp3")
-                val mp3Quality = when (audioQuality) {
-                    "320 kbps" -> "320K"
-                    "256 kbps" -> "256K"
-                    "192 kbps" -> "192K"
-                    "128 kbps" -> "128K"
+                val mp3Quality = when {
+                    audioQuality?.contains("320") == true -> "320K"
+                    audioQuality?.contains("256") == true -> "256K"
+                    audioQuality?.contains("192") == true -> "192K"
+                    audioQuality?.contains("128") == true -> "128K"
                     else -> "0"
                 }
                 request.addOption("--audio-quality", mp3Quality)
@@ -110,11 +110,12 @@ object MediaUtils {
                 request.addOption("--write-auto-sub")
                 request.addOption("--sub-format", "srt/vtt/best")
 
-                val lang = when (subtitleLang) {
-                    "English (en)" -> "en.*"
-                    "Arabic (ar)" -> "ar.*"
-                    "Spanish (es)" -> "es.*"
-                    "French (fr)" -> "fr.*"
+                val lang = when {
+                    subtitleLang?.contains("(en)", ignoreCase = true) == true || subtitleLang?.contains("English", ignoreCase = true) == true -> "en.*"
+                    subtitleLang?.contains("(zh)", ignoreCase = true) == true || subtitleLang?.contains("Chinese", ignoreCase = true) == true || subtitleLang?.contains("中文") == true -> "zh.*"
+                    subtitleLang?.contains("(ar)", ignoreCase = true) == true || subtitleLang?.contains("Arabic", ignoreCase = true) == true -> "ar.*"
+                    subtitleLang?.contains("(es)", ignoreCase = true) == true || subtitleLang?.contains("Spanish", ignoreCase = true) == true -> "es.*"
+                    subtitleLang?.contains("(fr)", ignoreCase = true) == true || subtitleLang?.contains("French", ignoreCase = true) == true -> "fr.*"
                     else -> "all"
                 }
                 request.addOption("--sub-langs", lang)

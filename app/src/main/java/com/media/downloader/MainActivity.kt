@@ -19,13 +19,18 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.media.downloader.databinding.ActivityMainBinding
+import com.media.downloader.databinding.DialogPasteSubtitlesBinding
 import com.media.downloader.model.DownloadItem
 import com.media.downloader.model.DownloadType
 import com.media.downloader.model.Platform
@@ -74,7 +79,7 @@ class MainActivity : AppCompatActivity() {
     ) { uri ->
         uri ?: return@registerForActivityResult
         subtitleBurnVideoUri = uri
-        subtitleLauncher.launch(arrayOf("text/srt", "text/vtt", "application/x-subrip", "text/*"))
+        showSubtitleSourceDialog()
     }
 
     private val subtitleLauncher = registerForActivityResult(
@@ -83,11 +88,17 @@ class MainActivity : AppCompatActivity() {
         val videoUri = subtitleBurnVideoUri
         subtitleBurnVideoUri = null
         if (subtitleUri == null || videoUri == null) return@registerForActivityResult
+        proceedWithSubtitleBurn(videoUri, subtitleUri)
+    }
+
+    private fun proceedWithSubtitleBurn(videoUri: Uri, subtitleUri: Uri) {
         runCatching {
             contentResolver.takePersistableUriPermission(
                 videoUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
+        }
+        runCatching {
             contentResolver.takePersistableUriPermission(
                 subtitleUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -105,6 +116,77 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showSubtitleSourceDialog() {
+        val options = arrayOf(
+            getString(R.string.subtitle_source_file),
+            getString(R.string.subtitle_source_paste)
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.subtitle_source_title)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> subtitleLauncher.launch(arrayOf("text/srt", "text/vtt", "application/x-subrip", "text/*"))
+                    1 -> showPasteSubtitleDialog()
+                }
+            }
+            .setNegativeButton(R.string.cancel_button) { _, _ ->
+                subtitleBurnVideoUri = null
+            }
+            .setOnCancelListener {
+                subtitleBurnVideoUri = null
+            }
+            .show()
+    }
+
+    private fun showPasteSubtitleDialog() {
+        val videoUri = subtitleBurnVideoUri ?: return
+        val dialogBinding = DialogPasteSubtitlesBinding.inflate(layoutInflater)
+
+        dialogBinding.btnPasteFromClipboard.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = clipboard.primaryClip
+            if (clip != null && clip.itemCount > 0) {
+                val text = clip.getItemAt(0).text?.toString().orEmpty()
+                dialogBinding.etSubtitleText.setText(text)
+            } else {
+                Toast.makeText(this, R.string.error_clipboard_empty, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setView(dialogBinding.root)
+            .setNegativeButton(R.string.cancel_button) { _, _ ->
+                subtitleBurnVideoUri = null
+            }
+            .setPositiveButton(R.string.btn_continue) { _, _ ->
+                val content = dialogBinding.etSubtitleText.text?.toString()?.trim().orEmpty()
+                if (content.isBlank()) {
+                    Toast.makeText(this, R.string.error_empty_subtitles, Toast.LENGTH_SHORT).show()
+                    subtitleBurnVideoUri = null
+                    return@setPositiveButton
+                }
+
+                try {
+                    val srtFile = File(filesDir, "pasted_subtitles.srt")
+                    srtFile.writeText(content, Charsets.UTF_8)
+                    val subtitleUri = FileProvider.getUriForFile(
+                        this,
+                        "${packageName}.fileprovider",
+                        srtFile
+                    )
+                    subtitleBurnVideoUri = null
+                    proceedWithSubtitleBurn(videoUri, subtitleUri)
+                } catch (e: Exception) {
+                    subtitleBurnVideoUri = null
+                    Toast.makeText(this, e.message ?: "Failed to process subtitles", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setOnCancelListener {
+                subtitleBurnVideoUri = null
+            }
+            .show()
+    }
+
     private val folderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -120,7 +202,7 @@ class MainActivity : AppCompatActivity() {
                 .apply()
             updateFolderLabel()
         } catch (e: SecurityException) {
-            Toast.makeText(this, "This folder cannot be used", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.error_folder_cannot_be_used, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -131,7 +213,7 @@ class MainActivity : AppCompatActivity() {
         if (allGranted) {
             triggerDownload()
         } else {
-            Toast.makeText(this, "Storage and notification permissions are required to download files", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.error_permission_required, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -163,7 +245,7 @@ class MainActivity : AppCompatActivity() {
             if (!sharedText.isNullOrBlank()) {
                 val extractedUrl = extractUrl(sharedText)
                 binding.etUrl.setText(extractedUrl)
-                Snackbar.make(binding.root, "Link received from share", Snackbar.LENGTH_SHORT).show()
+                Snackbar.make(binding.root, R.string.msg_link_received, Snackbar.LENGTH_SHORT).show()
             }
         }
     }
@@ -190,7 +272,7 @@ class MainActivity : AppCompatActivity() {
                 val url = extractUrl(text)
                 binding.etUrl.setText(url)
             } else {
-                Toast.makeText(this, "Clipboard is empty", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.error_clipboard_empty, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -397,7 +479,7 @@ class MainActivity : AppCompatActivity() {
                             binding.tvProgressPercent.text = "${state.progress.toInt()}% (ETA: ${formatEta(state.etaSeconds)})"
                         } else {
                             binding.progressBar.isIndeterminate = true
-                            binding.tvProgressPercent.text = "Initializing…"
+                            binding.tvProgressPercent.text = getString(R.string.status_initializing)
                         }
 
                         binding.tvProgressTitle.text = state.statusTitle ?: getString(R.string.status_downloading)
@@ -414,9 +496,9 @@ class MainActivity : AppCompatActivity() {
                         } else if (state.error != null) {
                             binding.cardProgress.visibility = View.GONE
                             AlertDialog.Builder(this@MainActivity)
-                                .setTitle("Download Error")
+                                .setTitle(R.string.dialog_title_download_error)
                                 .setMessage(state.error)
-                                .setPositiveButton("OK", null)
+                                .setPositiveButton(R.string.btn_ok, null)
                                 .show()
                         }
                     }
@@ -480,6 +562,10 @@ class MainActivity : AppCompatActivity() {
                 updateEngine()
                 true
             }
+            R.id.action_language -> {
+                showLanguageDialog()
+                true
+            }
             R.id.action_about -> {
                 showAboutDialog()
                 true
@@ -488,10 +574,47 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showLanguageDialog() {
+        val languages = arrayOf(
+            getString(R.string.language_system),
+            getString(R.string.language_en),
+            getString(R.string.language_zh_cn),
+            getString(R.string.language_zh_tw)
+        )
+        val currentLocales = AppCompatDelegate.getApplicationLocales()
+        val currentTag = if (currentLocales.isEmpty) "" else currentLocales[0]?.toLanguageTag().orEmpty()
+        val checkedIndex = when {
+            currentTag.startsWith("zh-TW", ignoreCase = true) || currentTag.startsWith("zh-Hant", ignoreCase = true) -> 3
+            currentTag.startsWith("zh", ignoreCase = true) -> 2
+            currentTag.startsWith("en", ignoreCase = true) -> 1
+            else -> 0
+        }
+
+        var selectedIndex = checkedIndex
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.language_title)
+            .setSingleChoiceItems(languages, checkedIndex) { _, which ->
+                selectedIndex = which
+            }
+            .setNegativeButton(R.string.cancel_button, null)
+            .setPositiveButton(R.string.btn_ok) { _, _ ->
+                if (selectedIndex != checkedIndex) {
+                    val targetLocales = when (selectedIndex) {
+                        1 -> LocaleListCompat.forLanguageTags("en")
+                        2 -> LocaleListCompat.forLanguageTags("zh-CN")
+                        3 -> LocaleListCompat.forLanguageTags("zh-TW")
+                        else -> LocaleListCompat.getEmptyLocaleList()
+                    }
+                    AppCompatDelegate.setApplicationLocales(targetLocales)
+                }
+            }
+            .show()
+    }
+
     private fun updateEngine() {
         val progressDialog = AlertDialog.Builder(this)
             .setTitle(R.string.status_updating)
-            .setMessage("Fetching the latest yt-dlp engine from GitHub...")
+            .setMessage(R.string.msg_fetching_engine)
             .setCancelable(false)
             .create()
         progressDialog.show()
@@ -507,9 +630,9 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     progressDialog.dismiss()
                     AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Update Failed")
-                        .setMessage(e.message ?: "Failed to update yt-dlp")
-                        .setPositiveButton("OK", null)
+                        .setTitle(R.string.dialog_title_update_failed)
+                        .setMessage(e.message ?: getString(R.string.status_update_failed))
+                        .setPositiveButton(R.string.btn_ok, null)
                         .show()
                 }
             }
@@ -518,15 +641,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAboutDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Media Downloader")
-            .setMessage("Fast & Universal Downloader for YouTube, Facebook, and Instagram.\n\n" +
-                    "Features:\n" +
-                    "• Video downloading with selectable resolution\n" +
-                    "• Pure MP3 audio extraction with FFmpeg\n" +
-                    "• Subtitles extraction (.srt / .vtt)\n" +
-                    "• Direct Android share integration\n" +
-                    "• Built-in yt-dlp update mechanism")
-            .setPositiveButton("OK", null)
+            .setTitle(R.string.dialog_about_title)
+            .setMessage(R.string.dialog_about_message)
+            .setPositiveButton(R.string.btn_ok, null)
             .show()
     }
 }

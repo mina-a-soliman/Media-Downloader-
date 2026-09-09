@@ -38,6 +38,9 @@
     <string name="mode_video">Video</string>
     <string name="mode_mp3">Audio (MP3)</string>
     <string name="mode_subtitles">Subtitles</string>
+    <string name="download_format">Download Format</string>
+    <string name="video_resolution_hint">Video Resolution</string>
+    <string name="subtitle_lang_hint">Subtitle Language</string>
 
     <!-- Video Quality Options -->
     <string name="quality_best">Best Available</string>
@@ -55,9 +58,20 @@
     <!-- Subtitle Options -->
     <string name="sub_all">All Subtitles</string>
     <string name="sub_en">English (en)</string>
+    <string name="sub_zh">Chinese (zh)</string>
     <string name="sub_ar">Arabic (ar)</string>
     <string name="sub_es">Spanish (es)</string>
     <string name="sub_fr">French (fr)</string>
+
+    <!-- Subtitle Source Selection & Paste -->
+    <string name="subtitle_source_title">Subtitle Source</string>
+    <string name="subtitle_source_file">Choose .srt / .vtt file</string>
+    <string name="subtitle_source_paste">Paste subtitle text (.srt)</string>
+    <string name="paste_subtitle_title">Paste Subtitle Text</string>
+    <string name="paste_subtitle_hint">Paste your .srt formatted subtitles here…</string>
+    <string name="paste_from_clipboard">Paste from clipboard</string>
+    <string name="error_empty_subtitles">Please enter or paste subtitle content</string>
+    <string name="btn_continue">Continue</string>
 
     <!-- Status & Alerts -->
     <string name="status_ready">Ready to download</string>
@@ -70,6 +84,23 @@
     <string name="status_updating">Updating yt-dlp engine…</string>
     <string name="status_updated">yt-dlp engine updated successfully!</string>
     <string name="status_update_failed">Failed to update yt-dlp</string>
+    <string name="status_initializing">Initializing…</string>
+
+    <!-- Dialogs & Error Messages -->
+    <string name="dialog_title_download_error">Download Error</string>
+    <string name="dialog_title_update_failed">Update Failed</string>
+    <string name="msg_fetching_engine">Fetching the latest yt-dlp engine from GitHub…</string>
+    <string name="btn_ok">OK</string>
+    <string name="dialog_about_title">Media Downloader</string>
+    <string name="dialog_about_message">Fast &amp; Universal Downloader for YouTube, Facebook, and Instagram.\n\nFeatures:\n• Video downloading with selectable resolution\n• Pure MP3 audio extraction with FFmpeg\n• Subtitles extraction (.srt / .vtt)\n• Hardcoded subtitle burning into video\n• Direct Android share integration\n• Built-in yt-dlp update mechanism</string>
+    <string name="error_folder_cannot_be_used">This folder cannot be used</string>
+    <string name="error_permission_required">Storage and notification permissions are required to download files</string>
+    <string name="error_clipboard_empty">Clipboard is empty</string>
+    <string name="msg_link_received">Link received from share</string>
+    <string name="error_no_app_to_open">No app available to open this file</string>
+    <string name="error_unable_to_share">Unable to share file</string>
+    <string name="chooser_open_with">Open with</string>
+    <string name="chooser_share_file">Share media file</string>
 
     <!-- History / Recent -->
     <string name="recent_downloads">Recent Downloads</string>
@@ -77,6 +108,7 @@
     <string name="open_file">Open</string>
     <string name="share_file">Share</string>
     <string name="delete_file">Delete</string>
+    <string name="refresh_downloads">Refresh downloads</string>
 
     <!-- Platform Badges -->
     <string name="platform_youtube">YouTube</string>
@@ -84,7 +116,13 @@
     <string name="platform_instagram">Instagram</string>
     <string name="platform_generic">Direct Video</string>
 
-    <!-- Menu / Settings -->
+    <!-- Menu & Language Settings -->
     <string name="action_update_engine">Update yt-dlp Engine</string>
     <string name="action_about">About</string>
+    <string name="action_language">Language</string>
+    <string name="language_title">Select Language</string>
+    <string name="language_system">Follow System</string>
+    <string name="language_en">English</string>
+    <string name="language_zh_cn">Simplified Chinese (简体中文)</string>
+    <string name="language_zh_tw">Traditional Chinese (繁體中文)</string>
 </resources>

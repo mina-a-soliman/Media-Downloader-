@@ -28,9 +28,13 @@ The included **GitHub Actions workflow** compiles and builds the APK in the clou
   - Converts videos or complete playlists to `.mp3` with embedded metadata.
   - Choose best-quality VBR or 320, 256, 192, and 128 kbps output.
   - Pick an existing video from your device and extract its audio directly to MP3.
-- 📝 **Subtitles Download**:
+- 📝 **Subtitles Download & Hardcoded Burning**:
   - Download subtitles in `.srt` or `.vtt` format.
-  - Multi-language support (English, Arabic, Spanish, French, or All).
+  - Multi-language subtitle download support (English, Chinese, Arabic, Spanish, French, or All).
+  - Burn hardcoded subtitles into device videos with customizable style (font, size, color, shadow, alignment) using a subtitle file or by directly pasting `.srt` text.
+- 🌐 **Multi-Language Support**:
+  - Full UI localization in English, Simplified Chinese (简体中文), and Traditional Chinese (繁體中文).
+  - Seamless in-app language switching and native Android 13+ per-app language preferences.
 - 📲 **Instant Android Share Integration**:
   - In YouTube, Facebook, or Instagram: tap **Share** ➔ choose **Media Downloader** ➔ link is automatically captured and ready to download.
 - 🔄 **In-App Engine Updater**:
