@@ -400,7 +400,8 @@ class MainActivity : AppCompatActivity() {
                             binding.tvProgressPercent.text = "Initializing…"
                         }
 
-                        binding.tvProgressTitle.text = getString(R.string.status_downloading)
+                        binding.tvProgressTitle.text = state.statusTitle ?: getString(R.string.status_downloading)
+                        binding.tvProgressSpeed.text = state.speedLabel
                         binding.tvProgressLog.text = state.logLine
                     } else {
                         binding.btnDownload.isEnabled = true

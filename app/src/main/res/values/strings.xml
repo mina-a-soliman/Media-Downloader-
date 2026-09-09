@@ -64,6 +64,7 @@
     <string name="status_downloading">Downloading…</string>
     <string name="status_processing">Converting / Processing with FFmpeg…</string>
     <string name="status_extracting">Extracting audio…</string>
+    <string name="status_burning">Burning subtitles…</string>
     <string name="status_completed">Download completed successfully!</string>
     <string name="status_failed">Download failed</string>
     <string name="status_updating">Updating yt-dlp engine…</string>

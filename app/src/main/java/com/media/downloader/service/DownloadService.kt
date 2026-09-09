@@ -10,7 +10,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.app.NotificationCompat
@@ -22,6 +25,7 @@ import com.media.downloader.model.SubtitleStyle
 import com.media.downloader.util.MediaUtils
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,6 +43,8 @@ class DownloadService : Service() {
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var currentProcessId: String? = null
+    @Volatile private var currentFfmpegProcess: Process? = null
+    @Volatile private var cancelRequested = false
 
     companion object {
         private const val TAG = "DownloadService"
@@ -60,13 +66,20 @@ class DownloadService : Service() {
         const val EXTRA_SUBTITLE_URI = "extra_subtitle_uri"
         const val EXTRA_SUBTITLE_STYLE = "extra_subtitle_style"
 
+        private val DURATION_REGEX = Regex("""Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)""")
+        private val TIME_REGEX = Regex("""(?:out_time|time)=(\d+):(\d+):(\d+(?:\.\d+)?)""")
+        private val SPEED_REGEX = Regex("""speed=\s*(\d+(?:\.\d+)?)x""")
+        private val OUT_TIME_US_REGEX = Regex("""out_time_us=(\d+)""")
+
         data class DownloadProgress(
             val isDownloading: Boolean = false,
             val progress: Float = 0f,
             val etaSeconds: Long = 0L,
             val logLine: String = "",
             val isCompleted: Boolean = false,
-            val error: String? = null
+            val error: String? = null,
+            val statusTitle: String? = null,
+            val speedLabel: String = ""
         )
 
         private val _progressState = MutableStateFlow(DownloadProgress())
@@ -392,16 +405,20 @@ class DownloadService : Service() {
     ) {
         serviceScope.launch {
             val workDir = File(cacheDir, "subtitle-burn/${System.currentTimeMillis()}").apply { mkdirs() }
+            val burnTitle = getString(R.string.status_burning)
             try {
-                _progressState.value = DownloadProgress(isDownloading = true, logLine = "Preparing video and subtitles…")
+                cancelRequested = false
+                _progressState.value = DownloadProgress(
+                    isDownloading = true,
+                    statusTitle = burnTitle,
+                    logLine = "Preparing video and subtitles…"
+                )
                 val videoName = queryDisplayName(videoUri) ?: "video.mp4"
                 val subtitleName = queryDisplayName(subtitleUri) ?: "subtitles.srt"
                 val baseName = videoName.substringBeforeLast('.')
                     .replace(Regex("[\\\\/:*?\"<>|]"), "_")
                     .ifBlank { "video-with-subtitles" }
-                val input = File(workDir, "input.${videoName.substringAfterLast('.', "mp4")}")
                 val subtitle = File(workDir, "subtitles.${subtitleName.substringAfterLast('.', "srt")}")
-                copyUriToFile(videoUri, input)
                 copyUriToFile(subtitleUri, subtitle)
 
                 val selectedTree = outputTreeUri?.let(Uri::parse)
@@ -416,32 +433,63 @@ class DownloadService : Service() {
                 val filter = buildSubtitleFilter(subtitle, fontsDir, style)
                 Log.d(TAG, "Subtitle filter: $filter")
 
-                updateNotification("Burning subtitles into video…", 0)
-                val command = listOf(
-                    ffmpeg.absolutePath, "-y", "-i", input.absolutePath,
-                    "-vf", filter,
-                    "-map", "0:v:0", "-map", "0:a?",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-                    "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-                    output.absolutePath
-                )
-                val process = ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .apply { environment()["LD_LIBRARY_PATH"] = ffmpegLibraryPath() }
-                    .start()
-                var lastLine = ""
-                process.inputStream.bufferedReader().useLines { lines ->
-                    lines.forEach { line ->
-                        lastLine = line
-                        _progressState.value = DownloadProgress(isDownloading = true, logLine = line)
+                withReadableVideoPath(videoUri, workDir, videoName) { initialInput ->
+                    updateNotification(burnTitle, 0)
+                    val videoArgs = listOf(
+                        "-c:v", "libx264",
+                        "-preset", "ultrafast",
+                        "-crf", "23",
+                        "-threads", "0",
+                        "-pix_fmt", "yuv420p"
+                    )
+
+                    fun burnCommand(path: String, audioArgs: List<String>) = buildList {
+                        add(ffmpeg.absolutePath)
+                        addAll(listOf("-hide_banner", "-nostdin", "-y", "-i", path))
+                        addAll(listOf("-vf", filter))
+                        addAll(listOf("-map", "0:v:0", "-map", "0:a?"))
+                        addAll(videoArgs)
+                        addAll(audioArgs)
+                        addAll(listOf("-movflags", "+faststart", "-progress", "pipe:1", "-nostats"))
+                        add(output.absolutePath)
+                    }
+
+                    var inputPath = initialInput
+                    var result = runFfmpeg(burnCommand(inputPath, listOf("-c:a", "copy")), burnTitle)
+                    if (!result.success && !cancelRequested && inputPath.startsWith("/proc/") && isInputOpenError(result.lastLine)) {
+                        Log.w(TAG, "Direct video access failed, copying file: ${result.lastLine}")
+                        _progressState.value = DownloadProgress(
+                            isDownloading = true,
+                            statusTitle = burnTitle,
+                            logLine = "Copying video…"
+                        )
+                        val copied = File(workDir, "input.${videoName.substringAfterLast('.', "mp4")}")
+                        copyUriToFile(videoUri, copied)
+                        inputPath = copied.absolutePath
+                        result = runFfmpeg(burnCommand(inputPath, listOf("-c:a", "copy")), burnTitle)
+                    }
+                    if (!result.success && !cancelRequested && isAudioCopyError(result.lastLine)) {
+                        Log.w(TAG, "Audio copy failed, retrying with AAC: ${result.lastLine}")
+                        if (output.exists()) output.delete()
+                        result = runFfmpeg(
+                            burnCommand(inputPath, listOf("-c:a", "aac", "-b:a", "128k")),
+                            burnTitle
+                        )
+                    }
+                    if (cancelRequested) {
+                        if (output.exists()) output.delete()
+                        _progressState.value = DownloadProgress(logLine = "Canceled")
+                        return@withReadableVideoPath
+                    }
+                    if (!result.success || !output.exists()) {
+                        error(
+                            result.lastLine.takeIf { it.isNotBlank() }
+                                ?: "FFmpeg could not burn subtitles into this video"
+                        )
                     }
                 }
-                if (process.waitFor() != 0 || !output.exists()) {
-                    error(
-                        lastLine.takeIf { it.isNotBlank() }
-                            ?: "FFmpeg could not burn subtitles into this video"
-                    )
-                }
+
+                if (cancelRequested) return@launch
 
                 if (selectedTree != null) {
                     copyToDocumentTree(outputDir, selectedTree, preserveDirectories = false)
@@ -454,10 +502,18 @@ class DownloadService : Service() {
                     logLine = "Subtitles burned into video!"
                 )
                 _completedEvent.emit(output)
+            } catch (e: CancellationException) {
+                _progressState.value = DownloadProgress(logLine = "Canceled")
+                throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Subtitle burn failed", e)
-                _progressState.value = DownloadProgress(error = e.message ?: "Subtitle burn failed")
+                if (cancelRequested) {
+                    _progressState.value = DownloadProgress(logLine = "Canceled")
+                } else {
+                    Log.e(TAG, "Subtitle burn failed", e)
+                    _progressState.value = DownloadProgress(error = e.message ?: "Subtitle burn failed")
+                }
             } finally {
+                destroyFfmpegProcess()
                 workDir.deleteRecursively()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -467,7 +523,7 @@ class DownloadService : Service() {
 
     private fun copyUriToFile(uri: Uri, destination: File) {
         contentResolver.openInputStream(uri)?.use { source ->
-            FileOutputStream(destination).use { target -> source.copyTo(target) }
+            FileOutputStream(destination).use { target -> source.copyTo(target, 512 * 1024) }
         } ?: error("Could not open selected file")
     }
 
@@ -494,20 +550,191 @@ class DownloadService : Service() {
     }
 
     private fun prepareSubtitleFonts(workDir: File, style: SubtitleStyle): File {
+        val systemFonts = File("/system/fonts")
+        val custom = style.fontPath?.let(::File)?.takeIf { it.isFile }
+        val customIsSystem = custom != null && custom.parentFile?.canonicalPath == systemFonts.canonicalPath
+        if ((custom == null || customIsSystem) && systemFonts.isDirectory) {
+            return systemFonts
+        }
+
         val fontsDir = File(workDir, "fonts").apply { mkdirs() }
-        val candidates = listOfNotNull(
-            style.fontPath?.let(::File),
+        listOfNotNull(
+            custom,
             File("/system/fonts/Roboto-Regular.ttf"),
             File("/system/fonts/NotoNaskhArabic-Regular.ttf"),
             File("/system/fonts/NotoSansArabic-Regular.ttf")
-        )
-        candidates.filter { it.isFile }.distinctBy { it.name }.forEach { source ->
+        ).filter { it.isFile }.distinctBy { it.name }.forEach { source ->
             runCatching { source.copyTo(File(fontsDir, source.name), overwrite = true) }
         }
-        if (fontsDir.list().isNullOrEmpty()) {
-            File("/system/fonts").takeIf { it.isDirectory }?.let { return it }
+        if (fontsDir.list().isNullOrEmpty() && systemFonts.isDirectory) {
+            return systemFonts
         }
         return fontsDir
+    }
+
+    private fun <T> withReadableVideoPath(
+        uri: Uri,
+        workDir: File,
+        displayName: String,
+        block: (String) -> T
+    ): T {
+        resolveDirectVideoPath(uri)?.let { return block(it) }
+
+        val descriptor = contentResolver.openFileDescriptor(uri, "r")
+        if (descriptor != null) {
+            descriptor.use { pfd ->
+                runCatching { Os.fcntlInt(pfd.fileDescriptor, OsConstants.F_SETFD, 0) }
+                val fdPath = "/proc/self/fd/${pfd.fd}"
+                if (File(fdPath).exists()) {
+                    return block(fdPath)
+                }
+            }
+        }
+
+        _progressState.value = DownloadProgress(
+            isDownloading = true,
+            statusTitle = getString(R.string.status_burning),
+            logLine = "Copying video…"
+        )
+        val dest = File(workDir, "input.${displayName.substringAfterLast('.', "mp4")}")
+        copyUriToFile(uri, dest)
+        return block(dest.absolutePath)
+    }
+
+    private fun resolveDirectVideoPath(uri: Uri): String? {
+        if (uri.scheme == "file") {
+            return uri.path?.takeIf { File(it).canRead() }
+        }
+        return runCatching {
+            contentResolver.query(
+                uri,
+                arrayOf(MediaStore.MediaColumns.DATA),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                if (idx >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(idx)?.takeIf { File(it).canRead() }
+                } else {
+                    null
+                }
+            }
+        }.getOrNull()
+    }
+
+    private data class FfmpegRunResult(val success: Boolean, val lastLine: String)
+
+    private fun runFfmpeg(command: List<String>, statusTitle: String): FfmpegRunResult {
+        Log.d(TAG, "FFmpeg command: ${command.joinToString(" ")}")
+        val process = ProcessBuilder(command)
+            .redirectErrorStream(true)
+            .apply { environment()["LD_LIBRARY_PATH"] = ffmpegLibraryPath() }
+            .start()
+        currentFfmpegProcess = process
+
+        var durationSec = 0.0
+        var lastTimeSec = 0.0
+        var lastSpeed = 0.0
+        var lastLine = ""
+        var lastError = ""
+        var lastNotifiedPercent = -1
+        readProcessLines(process) { line ->
+            if (line.isBlank()) return@readProcessLines
+            lastLine = line
+            val lower = line.lowercase()
+            if ("error" in lower || "failed" in lower || "invalid" in lower || "could not" in lower) {
+                lastError = line
+            }
+            DURATION_REGEX.find(line)?.let { durationSec = parseHms(it) }
+            TIME_REGEX.find(line)?.let { lastTimeSec = parseHms(it) }
+            OUT_TIME_US_REGEX.find(line)?.groupValues?.get(1)?.toLongOrNull()?.let {
+                lastTimeSec = it / 1_000_000.0
+            }
+            SPEED_REGEX.find(line)?.groupValues?.get(1)?.toDoubleOrNull()?.let { lastSpeed = it }
+
+            val percent = if (durationSec > 0 && lastTimeSec > 0) {
+                ((lastTimeSec / durationSec) * 100.0).toFloat().coerceIn(0f, 99.5f)
+            } else {
+                0f
+            }
+            val eta = if (lastSpeed > 0 && durationSec > 0 && lastTimeSec > 0) {
+                ((durationSec - lastTimeSec) / lastSpeed).toLong().coerceAtLeast(0L)
+            } else {
+                0L
+            }
+            val speedLabel = if (lastSpeed > 0) "${"%.1f".format(lastSpeed)}x" else ""
+            _progressState.value = DownloadProgress(
+                isDownloading = true,
+                progress = percent,
+                etaSeconds = eta,
+                logLine = if (lastSpeed > 0) "Encoding at $speedLabel" else line,
+                statusTitle = statusTitle,
+                speedLabel = speedLabel
+            )
+            val percentInt = percent.toInt()
+            if (percentInt != lastNotifiedPercent) {
+                lastNotifiedPercent = percentInt
+                updateNotification("$statusTitle $percentInt%", percentInt)
+            }
+        }
+
+        val exit = process.waitFor()
+        if (currentFfmpegProcess === process) currentFfmpegProcess = null
+        return FfmpegRunResult(success = exit == 0, lastLine = lastError.ifBlank { lastLine })
+    }
+
+    private fun readProcessLines(process: Process, onLine: (String) -> Unit) {
+        process.inputStream.bufferedReader().use { reader ->
+            val buffer = StringBuilder()
+            while (true) {
+                val ch = reader.read()
+                if (ch == -1) break
+                if (ch == '\r'.code || ch == '\n'.code) {
+                    if (buffer.isNotEmpty()) {
+                        onLine(buffer.toString().trim())
+                        buffer.clear()
+                    }
+                } else {
+                    buffer.append(ch.toChar())
+                }
+            }
+            if (buffer.isNotEmpty()) onLine(buffer.toString().trim())
+        }
+    }
+
+    private fun parseHms(match: MatchResult): Double {
+        val hours = match.groupValues[1].toDouble()
+        val minutes = match.groupValues[2].toDouble()
+        val seconds = match.groupValues[3].toDouble()
+        return hours * 3600 + minutes * 60 + seconds
+    }
+
+    private fun isAudioCopyError(line: String): Boolean {
+        val lower = line.lowercase()
+        return "codec not currently supported" in lower ||
+            "could not find tag for codec" in lower ||
+            "does not support" in lower ||
+            "error initializing output stream" in lower
+    }
+
+    private fun isInputOpenError(line: String): Boolean {
+        val lower = line.lowercase()
+        return "no such file" in lower ||
+            "error opening" in lower ||
+            "permission denied" in lower ||
+            "invalid argument" in lower
+    }
+
+    private fun destroyFfmpegProcess() {
+        val process = currentFfmpegProcess ?: return
+        currentFfmpegProcess = null
+        runCatching {
+            process.destroy()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                process.destroyForcibly()
+            }
+        }
     }
 
     private fun buildSubtitleFilter(subtitle: File, fontsDir: File, style: SubtitleStyle): String {
@@ -617,6 +844,7 @@ class DownloadService : Service() {
     }
 
     private fun cancelCurrentDownload() {
+        cancelRequested = true
         currentProcessId?.let { id ->
             try {
                 YoutubeDL.getInstance().destroyProcessById(id)
@@ -624,12 +852,15 @@ class DownloadService : Service() {
                 Log.e(TAG, "Error destroying process $id", e)
             }
         }
+        destroyFfmpegProcess()
         _progressState.value = DownloadProgress(isDownloading = false, logLine = "Download canceled")
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
+        cancelRequested = true
+        destroyFfmpegProcess()
         super.onDestroy()
         serviceJob.cancel()
     }
