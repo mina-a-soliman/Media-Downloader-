@@ -31,6 +31,7 @@ import com.media.downloader.model.DownloadType
 import com.media.downloader.model.Platform
 import com.media.downloader.service.DownloadService
 import com.media.downloader.ui.DownloadAdapter
+import com.media.downloader.ui.SubtitleStyleDialog
 import com.media.downloader.util.MediaUtils
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.Dispatchers
@@ -92,13 +93,16 @@ class MainActivity : AppCompatActivity() {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
         }
-        DownloadService.startSubtitleBurn(
-            context = this,
-            videoUri = videoUri.toString(),
-            subtitleUri = subtitleUri.toString(),
-            outputTreeUri = outputTreeUri?.toString()
-        )
-        binding.cardProgress.visibility = View.VISIBLE
+        SubtitleStyleDialog.show(this) { style ->
+            DownloadService.startSubtitleBurn(
+                context = this,
+                videoUri = videoUri.toString(),
+                subtitleUri = subtitleUri.toString(),
+                outputTreeUri = outputTreeUri?.toString(),
+                style = style
+            )
+            binding.cardProgress.visibility = View.VISIBLE
+        }
     }
 
     private val folderLauncher = registerForActivityResult(

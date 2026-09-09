@@ -18,6 +18,7 @@ import com.media.downloader.DownloaderApp
 import com.media.downloader.MainActivity
 import com.media.downloader.R
 import com.media.downloader.model.DownloadType
+import com.media.downloader.model.SubtitleStyle
 import com.media.downloader.util.MediaUtils
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
@@ -57,6 +58,7 @@ class DownloadService : Service() {
         const val EXTRA_OUTPUT_TREE_URI = "extra_output_tree_uri"
         const val EXTRA_VIDEO_URI = "extra_video_uri"
         const val EXTRA_SUBTITLE_URI = "extra_subtitle_uri"
+        const val EXTRA_SUBTITLE_STYLE = "extra_subtitle_style"
 
         data class DownloadProgress(
             val isDownloading: Boolean = false,
@@ -130,13 +132,15 @@ class DownloadService : Service() {
             context: Context,
             videoUri: String,
             subtitleUri: String,
-            outputTreeUri: String?
+            outputTreeUri: String?,
+            style: SubtitleStyle = SubtitleStyle()
         ) {
             val intent = Intent(context, DownloadService::class.java).apply {
                 action = ACTION_BURN_SUBTITLES
                 putExtra(EXTRA_VIDEO_URI, videoUri)
                 putExtra(EXTRA_SUBTITLE_URI, subtitleUri)
                 putExtra(EXTRA_OUTPUT_TREE_URI, outputTreeUri)
+                putExtra(EXTRA_SUBTITLE_STYLE, style.toBundle())
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -182,7 +186,8 @@ class DownloadService : Service() {
                 executeSubtitleBurn(
                     Uri.parse(videoUri),
                     Uri.parse(subtitleUri),
-                    intent.getStringExtra(EXTRA_OUTPUT_TREE_URI)
+                    intent.getStringExtra(EXTRA_OUTPUT_TREE_URI),
+                    SubtitleStyle.fromBundle(intent.getBundleExtra(EXTRA_SUBTITLE_STYLE))
                 )
             }
         }
@@ -379,7 +384,12 @@ class DownloadService : Service() {
         }
     }
 
-    private fun executeSubtitleBurn(videoUri: Uri, subtitleUri: Uri, outputTreeUri: String?) {
+    private fun executeSubtitleBurn(
+        videoUri: Uri,
+        subtitleUri: Uri,
+        outputTreeUri: String?,
+        style: SubtitleStyle
+    ) {
         serviceScope.launch {
             val workDir = File(cacheDir, "subtitle-burn/${System.currentTimeMillis()}").apply { mkdirs() }
             try {
@@ -402,15 +412,14 @@ class DownloadService : Service() {
                 }
                 val output = uniqueFile(outputDir, "$baseName-hardcoded.mp4")
                 val ffmpeg = findFfmpegBinary()
-                val subtitlePath = subtitle.absolutePath
-                    .replace("\\", "\\\\")
-                    .replace(":", "\\:")
-                    .replace("'", "\\'")
+                val fontsDir = prepareSubtitleFonts(workDir, style)
+                val filter = buildSubtitleFilter(subtitle, fontsDir, style)
+                Log.d(TAG, "Subtitle filter: $filter")
 
                 updateNotification("Burning subtitles into video…", 0)
                 val command = listOf(
                     ffmpeg.absolutePath, "-y", "-i", input.absolutePath,
-                    "-vf", "subtitles='$subtitlePath'",
+                    "-vf", filter,
                     "-map", "0:v:0", "-map", "0:a?",
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                     "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
@@ -420,13 +429,18 @@ class DownloadService : Service() {
                     .redirectErrorStream(true)
                     .apply { environment()["LD_LIBRARY_PATH"] = ffmpegLibraryPath() }
                     .start()
+                var lastLine = ""
                 process.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
+                        lastLine = line
                         _progressState.value = DownloadProgress(isDownloading = true, logLine = line)
                     }
                 }
                 if (process.waitFor() != 0 || !output.exists()) {
-                    error("FFmpeg could not burn subtitles into this video")
+                    error(
+                        lastLine.takeIf { it.isNotBlank() }
+                            ?: "FFmpeg could not burn subtitles into this video"
+                    )
                 }
 
                 if (selectedTree != null) {
@@ -477,6 +491,36 @@ class DownloadService : Service() {
             suffix++
         }
         return candidate
+    }
+
+    private fun prepareSubtitleFonts(workDir: File, style: SubtitleStyle): File {
+        val fontsDir = File(workDir, "fonts").apply { mkdirs() }
+        val candidates = listOfNotNull(
+            style.fontPath?.let(::File),
+            File("/system/fonts/Roboto-Regular.ttf"),
+            File("/system/fonts/NotoNaskhArabic-Regular.ttf"),
+            File("/system/fonts/NotoSansArabic-Regular.ttf")
+        )
+        candidates.filter { it.isFile }.distinctBy { it.name }.forEach { source ->
+            runCatching { source.copyTo(File(fontsDir, source.name), overwrite = true) }
+        }
+        if (fontsDir.list().isNullOrEmpty()) {
+            File("/system/fonts").takeIf { it.isDirectory }?.let { return it }
+        }
+        return fontsDir
+    }
+
+    private fun buildSubtitleFilter(subtitle: File, fontsDir: File, style: SubtitleStyle): String {
+        fun escape(path: String): String = path
+            .replace("\\", "/")
+            .replace(":", "\\:")
+            .replace("'", "\\'")
+        return buildString {
+            append("subtitles='").append(escape(subtitle.absolutePath)).append("'")
+            append(":fontsdir='").append(escape(fontsDir.absolutePath)).append("'")
+            append(":charenc=UTF-8")
+            append(":force_style='").append(style.toForceStyle()).append("'")
+        }
     }
 
     private fun findFfmpegBinary(): File {

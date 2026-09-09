@@ -11,6 +11,27 @@
     <string name="mp3_quality">MP3 Quality</string>
     <string name="extract_local_video">Extract MP3 from device video</string>
     <string name="burn_subtitles">Burn subtitles into device video</string>
+    <string name="subtitle_style_title">Subtitle style</string>
+    <string name="subtitle_style_confirm">Burn with this style</string>
+    <string name="subtitle_preview">Preview</string>
+    <string name="subtitle_preview_sample">Sample subtitle text</string>
+    <string name="subtitle_font">Font</string>
+    <string name="subtitle_size">Size: %d</string>
+    <string name="subtitle_text_color">Text color</string>
+    <string name="subtitle_outline_color">Outline color</string>
+    <string name="subtitle_outline">Outline: %d</string>
+    <string name="subtitle_shadow">Shadow: %d</string>
+    <string name="subtitle_position">Position</string>
+    <string name="subtitle_pos_top">Top</string>
+    <string name="subtitle_pos_middle">Middle</string>
+    <string name="subtitle_pos_bottom">Bottom</string>
+    <string name="subtitle_pos_left">Left</string>
+    <string name="subtitle_pos_center">Center</string>
+    <string name="subtitle_pos_right">Right</string>
+    <string name="subtitle_margin">Edge margin: %d</string>
+    <string name="subtitle_bold">Bold</string>
+    <string name="subtitle_italic">Italic</string>
+    <string name="subtitle_background_box">Opaque background box</string>
     <string name="cancel_button">Cancel</string>
 
     <!-- Download Modes -->
