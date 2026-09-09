@@ -346,10 +346,7 @@ class DownloadService : Service() {
                 command.add(output.absolutePath)
                 val process = ProcessBuilder(command)
                     .redirectErrorStream(true)
-                    .apply {
-                        environment()["LD_LIBRARY_PATH"] =
-                            ffmpeg.parentFile?.parentFile?.resolve("lib")?.absolutePath.orEmpty()
-                    }
+                    .apply { environment()["LD_LIBRARY_PATH"] = ffmpegLibraryPath() }
                     .start()
                 process.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
@@ -421,10 +418,7 @@ class DownloadService : Service() {
                 )
                 val process = ProcessBuilder(command)
                     .redirectErrorStream(true)
-                    .apply {
-                        environment()["LD_LIBRARY_PATH"] =
-                            ffmpeg.parentFile?.parentFile?.resolve("lib")?.absolutePath.orEmpty()
-                    }
+                    .apply { environment()["LD_LIBRARY_PATH"] = ffmpegLibraryPath() }
                     .start()
                 process.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
@@ -486,10 +480,45 @@ class DownloadService : Service() {
     }
 
     private fun findFfmpegBinary(): File {
-        FFmpeg.getInstance().init(applicationContext)
-        val root = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg")
-        return root.walkTopDown().firstOrNull { it.isFile && it.name == "ffmpeg" }
-            ?: error("FFmpeg executable is unavailable")
+        try {
+            FFmpeg.getInstance().init(applicationContext)
+        } catch (e: Exception) {
+            throw IllegalStateException("FFmpeg could not be initialized: ${e.message}", e)
+        }
+
+        val binaryNames = setOf("libffmpeg.so", "ffmpeg", "ffmpeg.bin")
+        val candidates = buildList {
+            add(File(applicationInfo.nativeLibraryDir, "libffmpeg.so"))
+            add(File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg/usr/bin/ffmpeg"))
+            add(File(filesDir, "youtubedl-android/packages/ffmpeg/usr/bin/ffmpeg"))
+        }
+
+        val binary = candidates.firstOrNull { it.isFile } ?: run {
+            val searchRoots = listOf(
+                File(applicationInfo.nativeLibraryDir),
+                File(noBackupFilesDir, "youtubedl-android"),
+                File(filesDir, "youtubedl-android")
+            )
+            searchRoots.firstNotNullOfOrNull { root ->
+                if (!root.exists()) null
+                else root.walkTopDown().firstOrNull { it.isFile && it.name in binaryNames }
+            }
+        } ?: error("FFmpeg executable is unavailable")
+        Log.d(TAG, "Using FFmpeg at ${binary.absolutePath}")
+        return binary
+    }
+
+    private fun ffmpegLibraryPath(): String {
+        val extractedFfmpegLibs = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg/usr/lib")
+        val extractedPythonLibs = File(noBackupFilesDir, "youtubedl-android/packages/python/usr/lib")
+        return listOf(
+            extractedFfmpegLibs,
+            extractedPythonLibs,
+            File(applicationInfo.nativeLibraryDir)
+        ).filter { it.isDirectory }
+            .map { it.absolutePath }
+            .distinct()
+            .joinToString(":")
     }
 
     private fun copyToDocumentTree(
