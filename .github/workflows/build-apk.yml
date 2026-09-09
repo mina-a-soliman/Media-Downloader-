@@ -46,39 +46,39 @@ jobs:
           fi
           chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Signed Release APK
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Prepare APK for Artifact Upload
         run: |
           mkdir -p output_apk
-          find app/build/outputs/apk/debug/ -name "*.apk" -exec ls -lh {} +
+          find app/build/outputs/apk/release/ -name "*.apk" -exec ls -lh {} +
           
-          # Copy arm64-v8a (Lightweight ~40MB APK for 99% of modern phones)
-          if [ -f "app/build/outputs/apk/debug/app-arm64-v8a-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk output_apk/MediaDownloader-v1.1.0-arm64-v8a.apk
+          # Copy arm64-v8a (Lightweight APK for 99% of modern phones)
+          if [ -f "app/build/outputs/apk/release/app-arm64-v8a-release.apk" ]; then
+            cp app/build/outputs/apk/release/app-arm64-v8a-release.apk output_apk/MediaDownloader-arm64-v8a.apk
           fi
 
-          # Copy armeabi-v7a (Lightweight ~35MB APK for older 32-bit phones)
-          if [ -f "app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk output_apk/MediaDownloader-v1.1.0-armeabi-v7a.apk
+          # Copy armeabi-v7a (Lightweight APK for older 32-bit phones)
+          if [ -f "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" ]; then
+            cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk output_apk/MediaDownloader-armeabi-v7a.apk
           fi
 
           # Copy universal APK if generated
-          if [ -f "app/build/outputs/apk/debug/app-universal-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-universal-debug.apk output_apk/MediaDownloader-v1.1.0-universal.apk
-          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk output_apk/MediaDownloader-v1.1.0-universal.apk
+          if [ -f "app/build/outputs/apk/release/app-universal-release.apk" ]; then
+            cp app/build/outputs/apk/release/app-universal-release.apk output_apk/MediaDownloader-universal.apk
+          elif [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            cp app/build/outputs/apk/release/app-release.apk output_apk/MediaDownloader-universal.apk
           fi
 
           echo "=== Prepared APKs ==="
           ls -lh output_apk/
 
-      - name: Upload Recommended Lightweight APK (arm64-v8a ~40MB)
+      - name: Upload Recommended Lightweight APK (arm64-v8a)
         uses: actions/upload-artifact@v4
         with:
           name: MediaDownloader-Lite-arm64-v8a
-          path: output_apk/MediaDownloader-v1.1.0-arm64-v8a.apk
+          path: output_apk/MediaDownloader-arm64-v8a.apk
           retention-days: 30
 
       - name: Upload All APK Variants
