@@ -5,7 +5,9 @@ import android.media.MediaScannerConnection
 import android.os.Environment
 import com.media.downloader.model.DownloadType
 import com.media.downloader.model.Platform
+import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.yausername.youtubedl_android.mapper.VideoInfo
 import java.io.File
 import java.text.DecimalFormat
 
@@ -54,22 +56,67 @@ object MediaUtils {
         }
     }
 
+    data class MediaProbe(
+        val title: String?,
+        val videoHeights: List<Int>
+    )
+
+    fun probeMedia(url: String): MediaProbe {
+        val request = YoutubeDLRequest(url)
+        request.addOption("--no-playlist")
+        request.addOption("--socket-timeout", "30")
+        val info = YoutubeDL.getInstance().getInfo(request)
+        return MediaProbe(
+            title = info.title?.trim()?.takeIf { it.isNotEmpty() },
+            videoHeights = availableVideoHeights(info)
+        )
+    }
+
+    private fun availableVideoHeights(info: VideoInfo): List<Int> {
+        val fromFormats = info.formats.orEmpty()
+            .filter { format ->
+                format.height > 0 &&
+                    !format.vcodec.equals("none", ignoreCase = true) &&
+                    !format.ext.equals("mhtml", ignoreCase = true)
+            }
+            .map { it.height }
+        val heights = fromFormats.ifEmpty {
+            listOf(info.height).filter { it > 0 }
+        }
+        return heights.distinct().sortedDescending()
+    }
+
+    fun sanitizeFileName(raw: String): String {
+        return raw
+            .replace(Regex("""[\\/:*?"<>|%\p{Cntrl}]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .trim('.')
+            .take(150)
+    }
+
     fun buildYoutubeDLRequest(
         url: String,
         type: DownloadType,
-        quality: String?,
+        maxHeight: Int?,
         subtitleLang: String?,
         audioQuality: String?,
         playlist: Boolean,
-        outputDir: File
+        outputDir: File,
+        fileName: String?
     ): YoutubeDLRequest {
         val request = YoutubeDLRequest(url)
 
-        // General output template: Title.ext
-        val outputName = if (playlist) {
-            "%(playlist_title|Playlist)s/%(playlist_index)03d - %(title)s.%(ext)s"
-        } else {
-            "%(title)s.%(ext)s"
+        val safeName = fileName?.let(::sanitizeFileName)?.takeIf { it.isNotEmpty() }
+        val outputName = when {
+            playlist && safeName != null ->
+                "$safeName/%(playlist_index)03d - %(title)s.%(ext)s"
+            playlist ->
+                "%(playlist_title|Playlist)s/%(playlist_index)03d - %(title)s.%(ext)s"
+            safeName != null ->
+                "$safeName.%(ext)s"
+            else ->
+                "%(title)s.%(ext)s"
         }
         val template = "${outputDir.absolutePath}/$outputName"
         request.addOption("-o", template)
@@ -79,12 +126,10 @@ object MediaUtils {
 
         when (type) {
             DownloadType.VIDEO -> {
-                val formatSelection = when {
-                    quality?.contains("1080") == true -> "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-                    quality?.contains("720") == true -> "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-                    quality?.contains("480") == true -> "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-                    quality?.contains("360") == true -> "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
-                    else -> "bestvideo+bestaudio/best"
+                val formatSelection = if (maxHeight != null && maxHeight > 0) {
+                    "bestvideo[height=$maxHeight]+bestaudio/best[height=$maxHeight]/bestvideo[height<=$maxHeight]+bestaudio/best"
+                } else {
+                    "bestvideo+bestaudio/best"
                 }
                 request.addOption("-f", formatSelection)
                 request.addOption("--merge-output-format", "mp4")

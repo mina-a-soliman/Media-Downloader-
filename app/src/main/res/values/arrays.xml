@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string-array name="video_qualities_array">
-        <item>@string/quality_best</item>
-        <item>@string/quality_1080p</item>
-        <item>@string/quality_720p</item>
-        <item>@string/quality_480p</item>
-        <item>@string/quality_360p</item>
-    </string-array>
-
     <string-array name="mp3_qualities_array">
         <item>@string/mp3_best</item>
         <item>@string/mp3_320</item>

@@ -40,14 +40,24 @@
     <string name="mode_subtitles">字幕</string>
     <string name="download_format">下载格式</string>
     <string name="video_resolution_hint">视频分辨率</string>
+    <string name="file_name_hint">文件名</string>
+    <string name="file_name_helper">留空则使用视频标题</string>
+    <string name="file_name_helper_playlist">用作播放列表文件夹名称</string>
+    <string name="loading_qualities">正在加载可用画质…</string>
+    <string name="error_qualities_unavailable">无法加载画质，将使用最佳画质。</string>
     <string name="subtitle_lang_hint">字幕语言</string>
 
     <!-- Video Quality Options -->
     <string name="quality_best">最佳画质</string>
+    <string name="quality_2160p">2160p (4K)</string>
+    <string name="quality_1440p">1440p (2K)</string>
     <string name="quality_1080p">1080p (超清)</string>
     <string name="quality_720p">720p (高清)</string>
     <string name="quality_480p">480p (标清)</string>
     <string name="quality_360p">360p (流畅)</string>
+    <string name="quality_240p">240p</string>
+    <string name="quality_144p">144p</string>
+    <string name="quality_height">%1$dp</string>
 
     <string name="mp3_best">最佳音质 (VBR)</string>
     <string name="mp3_320">320 kbps</string>

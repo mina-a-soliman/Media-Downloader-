@@ -39,7 +39,10 @@ import com.media.downloader.ui.DownloadAdapter
 import com.media.downloader.ui.SubtitleStyleDialog
 import com.media.downloader.util.MediaUtils
 import com.yausername.youtubedl_android.YoutubeDL
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -57,6 +60,14 @@ class MainActivity : AppCompatActivity() {
     private var currentMode: DownloadType = DownloadType.VIDEO
     private var outputTreeUri: Uri? = null
     private var subtitleBurnVideoUri: Uri? = null
+    private var infoJob: Job? = null
+    private var infoRequestId = 0
+    private var loadedInfoUrl: String? = null
+    private var suggestedFileName: String? = null
+    private lateinit var qualityAdapter: ArrayAdapter<String>
+    private var qualityOptions: List<QualityOption> = emptyList()
+
+    private data class QualityOption(val label: String, val height: Int?)
 
     private val videoLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -294,8 +305,15 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     binding.chipPlatform.visibility = View.GONE
                 }
+                scheduleMediaInfoFetch(url)
             }
         })
+
+        binding.cbPlaylist.setOnCheckedChangeListener { _, isChecked ->
+            binding.tilFileName.helperText = getString(
+                if (isChecked) R.string.file_name_helper_playlist else R.string.file_name_helper
+            )
+        }
 
         // Download Mode selector
         binding.toggleGroupMode.addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -369,9 +387,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupDropdowns() {
-        val qualities = resources.getStringArray(R.array.video_qualities_array)
-        val qualityAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, qualities)
+        qualityAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, mutableListOf())
         binding.actvQuality.setAdapter(qualityAdapter)
+        binding.actvQuality.keyListener = null
+        applyQualityOptions(emptyList())
 
         val subtitles = resources.getStringArray(R.array.subtitles_array)
         val subAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, subtitles)
@@ -381,6 +400,109 @@ class MainActivity : AppCompatActivity() {
         binding.actvMp3Quality.setAdapter(
             ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, mp3Qualities)
         )
+    }
+
+    private fun scheduleMediaInfoFetch(url: String) {
+        infoJob?.cancel()
+        if (url == loadedInfoUrl) return
+
+        if (loadedInfoUrl != null) {
+            loadedInfoUrl = null
+            applyQualityOptions(emptyList())
+            if (binding.etFileName.text?.toString() == suggestedFileName) {
+                suggestedFileName = null
+                binding.etFileName.setText("")
+            }
+        }
+
+        if (!isFetchableUrl(url)) {
+            infoRequestId++
+            binding.tilQuality.isEnabled = true
+            binding.tilQuality.helperText = null
+            return
+        }
+
+        val requestId = ++infoRequestId
+        binding.tilQuality.isEnabled = false
+        binding.tilQuality.helperText = getString(R.string.loading_qualities)
+        infoJob = lifecycleScope.launch {
+            delay(800)
+            fetchMediaInfo(url, requestId)
+        }
+    }
+
+    private suspend fun fetchMediaInfo(url: String, requestId: Int) {
+        val result = withContext(Dispatchers.IO) {
+            try {
+                Result.success(MediaUtils.probeMedia(url))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+        if (requestId != infoRequestId) return
+        if (binding.etUrl.text?.toString()?.trim() != url) return
+
+        binding.tilQuality.isEnabled = true
+        result.onSuccess { probe ->
+            loadedInfoUrl = url
+            applyQualityOptions(probe.videoHeights)
+            binding.tilQuality.helperText = null
+            val title = probe.title
+            if (!title.isNullOrBlank()) {
+                val currentName = binding.etFileName.text?.toString().orEmpty()
+                if (currentName.isBlank() || currentName == suggestedFileName) {
+                    suggestedFileName = title
+                    binding.etFileName.setText(title)
+                }
+            }
+        }.onFailure {
+            applyQualityOptions(emptyList())
+            binding.tilQuality.helperText = getString(R.string.error_qualities_unavailable)
+        }
+    }
+
+    private fun applyQualityOptions(heights: List<Int>) {
+        qualityOptions = buildList {
+            add(QualityOption(getString(R.string.quality_best), null))
+            heights.forEach { height ->
+                add(QualityOption(qualityLabel(height), height))
+            }
+        }
+        qualityAdapter.clear()
+        qualityAdapter.addAll(qualityOptions.map { it.label })
+        qualityAdapter.notifyDataSetChanged()
+        val current = binding.actvQuality.text?.toString().orEmpty()
+        if (current !in qualityOptions.map { it.label }) {
+            binding.actvQuality.setText(qualityOptions.first().label, false)
+        }
+    }
+
+    private fun qualityLabel(height: Int): String = when (height) {
+        2160 -> getString(R.string.quality_2160p)
+        1440 -> getString(R.string.quality_1440p)
+        1080 -> getString(R.string.quality_1080p)
+        720 -> getString(R.string.quality_720p)
+        480 -> getString(R.string.quality_480p)
+        360 -> getString(R.string.quality_360p)
+        240 -> getString(R.string.quality_240p)
+        144 -> getString(R.string.quality_144p)
+        else -> getString(R.string.quality_height, height)
+    }
+
+    private fun isFetchableUrl(url: String): Boolean {
+        return runCatching {
+            val uri = Uri.parse(url)
+            val scheme = uri.scheme
+            val host = uri.host
+            (scheme == "http" || scheme == "https") && !host.isNullOrBlank() && '.' in host
+        }.getOrDefault(false)
+    }
+
+    private fun selectedMaxHeight(): Int? {
+        val label = binding.actvQuality.text?.toString().orEmpty()
+        return qualityOptions.firstOrNull { it.label == label }?.height
     }
 
     private fun restoreOutputFolder() {
@@ -446,19 +568,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun triggerDownload() {
         val url = binding.etUrl.text?.toString()?.trim().orEmpty()
-        val quality = binding.actvQuality.text?.toString()
         val subLang = binding.actvSubtitleLang.text?.toString()
         val audioQuality = binding.actvMp3Quality.text?.toString()
+        val fileName = binding.etFileName.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
 
         DownloadService.startDownload(
             context = this,
             url = url,
             type = currentMode,
-            quality = quality,
+            maxHeight = selectedMaxHeight(),
             subtitleLang = subLang,
             audioQuality = audioQuality,
             playlist = binding.cbPlaylist.isChecked,
-            outputTreeUri = outputTreeUri?.toString()
+            outputTreeUri = outputTreeUri?.toString(),
+            fileName = fileName
         )
         binding.cardProgress.visibility = View.VISIBLE
     }

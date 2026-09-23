@@ -167,6 +167,30 @@
 
                     </com.google.android.material.button.MaterialButtonToggleGroup>
 
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilFileName"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:hint="@string/file_name_hint"
+                        app:boxCornerRadiusBottomEnd="12dp"
+                        app:boxCornerRadiusBottomStart="12dp"
+                        app:boxCornerRadiusTopEnd="12dp"
+                        app:boxCornerRadiusTopStart="12dp"
+                        app:helperText="@string/file_name_helper">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etFileName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:imeOptions="actionDone"
+                            android:inputType="textCapSentences"
+                            android:maxLines="1"
+                            android:singleLine="true" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
                     <!-- Video Quality Selector -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilQuality"

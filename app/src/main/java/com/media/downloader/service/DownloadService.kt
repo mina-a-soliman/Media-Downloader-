@@ -57,7 +57,8 @@ class DownloadService : Service() {
 
         const val EXTRA_URL = "extra_url"
         const val EXTRA_TYPE = "extra_type"
-        const val EXTRA_QUALITY = "extra_quality"
+        const val EXTRA_MAX_HEIGHT = "extra_max_height"
+        const val EXTRA_FILE_NAME = "extra_file_name"
         const val EXTRA_SUBTITLE_LANG = "extra_subtitle_lang"
         const val EXTRA_AUDIO_QUALITY = "extra_audio_quality"
         const val EXTRA_PLAYLIST = "extra_playlist"
@@ -92,17 +93,19 @@ class DownloadService : Service() {
             context: Context,
             url: String,
             type: DownloadType,
-            quality: String?,
+            maxHeight: Int?,
             subtitleLang: String?,
             audioQuality: String?,
             playlist: Boolean,
-            outputTreeUri: String?
+            outputTreeUri: String?,
+            fileName: String?
         ) {
             val intent = Intent(context, DownloadService::class.java).apply {
                 action = ACTION_START_DOWNLOAD
                 putExtra(EXTRA_URL, url)
                 putExtra(EXTRA_TYPE, type.name)
-                putExtra(EXTRA_QUALITY, quality)
+                putExtra(EXTRA_MAX_HEIGHT, maxHeight ?: -1)
+                putExtra(EXTRA_FILE_NAME, fileName)
                 putExtra(EXTRA_SUBTITLE_LANG, subtitleLang)
                 putExtra(EXTRA_AUDIO_QUALITY, audioQuality)
                 putExtra(EXTRA_PLAYLIST, playlist)
@@ -171,14 +174,15 @@ class DownloadService : Service() {
                 val url = intent.getStringExtra(EXTRA_URL) ?: return START_NOT_STICKY
                 val typeName = intent.getStringExtra(EXTRA_TYPE) ?: DownloadType.VIDEO.name
                 val type = DownloadType.valueOf(typeName)
-                val quality = intent.getStringExtra(EXTRA_QUALITY)
+                val maxHeight = intent.getIntExtra(EXTRA_MAX_HEIGHT, -1).takeIf { it > 0 }
+                val fileName = intent.getStringExtra(EXTRA_FILE_NAME)
                 val subtitleLang = intent.getStringExtra(EXTRA_SUBTITLE_LANG)
                 val audioQuality = intent.getStringExtra(EXTRA_AUDIO_QUALITY)
                 val playlist = intent.getBooleanExtra(EXTRA_PLAYLIST, false)
                 val outputTreeUri = intent.getStringExtra(EXTRA_OUTPUT_TREE_URI)
 
                 startForegroundNotification()
-                executeDownload(url, type, quality, subtitleLang, audioQuality, playlist, outputTreeUri)
+                executeDownload(url, type, maxHeight, subtitleLang, audioQuality, playlist, outputTreeUri, fileName)
             }
             ACTION_CANCEL_DOWNLOAD -> {
                 cancelCurrentDownload()
@@ -246,11 +250,12 @@ class DownloadService : Service() {
     private fun executeDownload(
         url: String,
         type: DownloadType,
-        quality: String?,
+        maxHeight: Int?,
         subtitleLang: String?,
         audioQuality: String?,
         playlist: Boolean,
-        outputTreeUri: String?
+        outputTreeUri: String?,
+        fileName: String?
     ) {
         val processId = "dl_${System.currentTimeMillis()}"
         currentProcessId = processId
@@ -268,11 +273,12 @@ class DownloadService : Service() {
                 val request = MediaUtils.buildYoutubeDLRequest(
                     url = url,
                     type = type,
-                    quality = quality,
+                    maxHeight = maxHeight,
                     subtitleLang = subtitleLang,
                     audioQuality = audioQuality,
                     playlist = playlist,
-                    outputDir = outputDir
+                    outputDir = outputDir,
+                    fileName = fileName
                 )
 
                 YoutubeDL.getInstance().execute(request, processId) { progress, etaInSeconds, line ->
