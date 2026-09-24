@@ -126,13 +126,16 @@ object MediaUtils {
 
         when (type) {
             DownloadType.VIDEO -> {
-                val formatSelection = if (maxHeight != null && maxHeight > 0) {
-                    "bestvideo[height=$maxHeight]+bestaudio/best[height=$maxHeight]/bestvideo[height<=$maxHeight]+bestaudio/best"
-                } else {
-                    "bestvideo+bestaudio/best"
-                }
+                val heightFilter = if (maxHeight != null && maxHeight > 0) "[height<=$maxHeight]" else ""
+                // KineMaster imports H.264 + AAC in MP4. YouTube "best" is usually VP9/AV1 + Opus.
+                val formatSelection =
+                    "bestvideo[vcodec^=avc1]$heightFilter+bestaudio[acodec^=mp4a]/" +
+                        "best[vcodec^=avc1][ext=mp4]$heightFilter/" +
+                        "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/" +
+                        "best[ext=mp4]"
                 request.addOption("-f", formatSelection)
                 request.addOption("--merge-output-format", "mp4")
+                request.addOption("--remux-video", "mp4")
             }
 
             DownloadType.AUDIO_MP3 -> {
